@@ -31,7 +31,7 @@
 - Docker Compose 5.3.1 warns that local secret `uid`, `gid`, and `mode` settings are ignored; the local acceptance still passed because the generated source key remained readable to the test container, while production Helm security remains enforced separately.
 - `make build` passed, and both local non-root images built successfully: core `sha256:d8c8713f14a2831b4039f546cb9fe5d4746a3db874f8aef00ad0ba1a35639ad6` and runner `sha256:b6519c75294ad64e009a217b5ecf9437b7c0f9b7cf78562bf008b35352c9b87c6`.
 - Helm security rendering, local Compose validation with dummy non-production variables, the non-root core image build (`sha256:98a160382142b3ff3d9c79861ccc8d267ab85fb3c84132f17857fe3bf0c291`), and the corrected pinned-NATS request/reply smoke have passed. The core image reports `pitools 0.1.0`; the runner returns request-bound diagnosis-only JSON when no provider workflow is selected.
-- The runner dependency audit reports 3 upstream transitive npm advisories (1 moderate, 2 high, 0 critical) that the dependency advisor did not authorize an override for; this remains a release review item.
+- The 2026-08-11 runner audit reproduces 3 upstream transitive npm advisories (1 moderate, 2 high, 0 critical): `@earendil-works/pi-coding-agent@0.82.1` brings `undici@8.5.0` and `brace-expansion@5.0.7`. `npm audit --omit=dev` identifies the provider upgrade to `0.84.1` as the available remediation, while Dependency Advisor's `standard` policy (336-hour minimum age) continues to recommend the existing `0.82.1`; no unapproved direct upgrade or transitive override was applied. This remains a release review item.
 
 ## External release prerequisites
 
