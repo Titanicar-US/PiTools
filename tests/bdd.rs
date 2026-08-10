@@ -8,8 +8,8 @@ use pitools::{
         Feedback, FeedbackReply, FeedbackReplyTarget, RepairDecision, RepairDisposition,
         render_feedback_reply, repair_feedback,
     },
-    github::events::DeliveryEnvelope,
     github::manifest::validate_manifest_code,
+    github::{client::actions_job_id_from_details_url, events::DeliveryEnvelope},
     pr_controls::{
         ControlAction, ControlRequest, ItemStatus, PlanItem, RunState, RunStatus, apply_control,
     },
@@ -37,6 +37,7 @@ struct World {
     rebase_default_rejected: bool,
     rebase_explicit_allowed: bool,
     ci_evidence: Option<String>,
+    actions_job_id: Option<i64>,
     ci_admission_rejected: bool,
     metrics_body: Option<String>,
 }
@@ -306,6 +307,24 @@ fn actions_evidence_is_retained(world: &mut World) {
     assert!(evidence.contains("test failed"));
     assert!(evidence.contains("src/lib.rs"));
     assert!(evidence.contains("assertion failed"));
+}
+
+#[given("an Actions check run details URL")]
+fn actions_check_run_details_url(world: &mut World) {
+    world.actions_job_id = None;
+}
+
+#[when("PiTools resolves the workflow job ID for Actions logs")]
+fn resolves_actions_job_id(world: &mut World) {
+    world.actions_job_id = actions_job_id_from_details_url(Some(
+        "https://github.com/acme/widgets/actions/runs/29679449/job/399444496",
+    ));
+}
+
+#[then("it resolves the workflow job ID without using the check run ID")]
+fn actions_job_id_is_distinct_from_check_run_id(world: &mut World) {
+    assert_eq!(world.actions_job_id, Some(399444496));
+    assert_ne!(world.actions_job_id, Some(81));
 }
 
 #[given("a typed CI repair patch is proposed without approval")]

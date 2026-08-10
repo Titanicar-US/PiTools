@@ -40,6 +40,11 @@ Feature: pull request work-plan controls
     When PiTools prepares the Actions diagnosis envelope
     Then the bounded evidence retains the Actions log and annotation
 
+  Scenario: Actions logs use the workflow job ID from check-run details
+    Given an Actions check run details URL
+    When PiTools resolves the workflow job ID for Actions logs
+    Then it resolves the workflow job ID without using the check run ID
+
   Scenario: typed CI patches cannot bypass explicit approval
     Given a typed CI repair patch is proposed without approval
     When PiTools admits the CI mutation

@@ -1,6 +1,6 @@
 use pitools::github::{
     auth::InstallationToken,
-    client::{GitHubClient, GitHubClientError},
+    client::{GitHubClient, GitHubClientError, actions_job_id_from_details_url},
 };
 use secrecy::SecretString;
 use serde_json::json;
@@ -478,6 +478,28 @@ async fn reads_actions_job_logs_and_check_run_annotations_for_ci_diagnosis() {
     assert_eq!(annotations.len(), 1);
     assert_eq!(annotations[0].path, "src/lib.rs");
     assert_eq!(annotations[0].message, "assertion failed");
+}
+
+#[test]
+fn extracts_actions_job_id_from_check_run_details_url() {
+    assert_eq!(
+        actions_job_id_from_details_url(Some(
+            "https://github.com/acme/widgets/actions/runs/29679449/job/399444496",
+        )),
+        Some(399444496),
+    );
+    assert_eq!(
+        actions_job_id_from_details_url(Some(
+            "https://github.com/acme/widgets/actions/runs/29679449",
+        )),
+        None,
+    );
+    assert_eq!(
+        actions_job_id_from_details_url(Some(
+            "https://github.com/acme/widgets/actions/runs/29679449/job/0",
+        )),
+        None,
+    );
 }
 
 #[tokio::test]

@@ -45,7 +45,7 @@ PiTools publishes a container image and reusable Helm chart. The production prof
 - Typed CI patches always require an explicit Check Run approval; repository policy cannot disable this mutation gate, and Pi rejects any patch result that does not declare approval.
 - Feedback automation is limited to configured automation actors. Human feedback is recorded and surfaced but is not automatically changed.
 - Suggested changes are applied only after exact extraction, isolated worktree validation, configured checks, and policy approval.
-- Future CI/feedback repair executes in an ephemeral least-privileged worker with bounded resources and provider/allowlisted network access.
+- Optional provider-backed CI/feedback repair executes in an ephemeral least-privileged worker with bounded resources and provider/allowlisted network access; diagnosis-only mode remains the default.
 - Repair commits use the GitHub App bot identity and include a job/audit trailer.
 
 ## Delivery slices

@@ -13,6 +13,26 @@ const MAX_ACTIONS_LOG_BYTES: usize = 128 * 1024;
 const MAX_CHECK_ANNOTATION_BYTES: usize = 256 * 1024;
 const MAX_CHECK_RUN_ANNOTATIONS: usize = 100;
 
+/// Extract the Actions workflow job ID embedded in a GitHub check-run URL.
+///
+/// Check-run IDs and Actions job IDs are different resources. GitHub's job
+/// log endpoint accepts the latter, while a check run's `details_url` carries
+/// the `/job/<id>` path for Actions-backed checks.
+pub fn actions_job_id_from_details_url(details_url: Option<&str>) -> Option<i64> {
+    let url = Url::parse(details_url?).ok()?;
+    if url.scheme() != "https" {
+        return None;
+    }
+    let mut segments = url.path_segments()?;
+    while let Some(segment) = segments.next() {
+        if segment == "job" {
+            let job_id = segments.next()?.parse::<i64>().ok()?;
+            return (job_id > 0).then_some(job_id);
+        }
+    }
+    None
+}
+
 #[derive(Clone)]
 pub struct GitHubClient {
     client: reqwest::Client,

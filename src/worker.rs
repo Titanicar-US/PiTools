@@ -22,7 +22,7 @@ use crate::{
     ci::{CiMutationAdmission, admit_ci_mutation, prepare_ci_evidence},
     github::{
         auth::{GitHubAppAuth, InstallationTokenScope},
-        client::GitHubClient,
+        client::{GitHubClient, actions_job_id_from_details_url},
     },
     models::{PullRequestSnapshot, PullRequestState},
     pi::{NatsPiWorker, PiJobRequest, PiJobResult},
@@ -1180,24 +1180,36 @@ impl WorkerRuntime {
                             .as_deref()
                             .is_some_and(is_failed_check_conclusion)
                         {
-                            match github
-                                .download_workflow_job_logs(
-                                    &repository.owner,
-                                    &repository.name,
-                                    check_run.id,
-                                )
-                                .await
+                            if let Some(actions_job_id) =
+                                actions_job_id_from_details_url(check_run.details_url.as_deref())
                             {
-                                Ok(log) => Some(json!(log)),
-                                Err(error) => {
-                                    tracing::warn!(
-                                        job_id = %job.id,
-                                        check_run_id = check_run.id,
-                                        error = %error,
-                                        "failed to fetch Actions job logs; continuing with check-run evidence"
-                                    );
-                                    None
+                                match github
+                                    .download_workflow_job_logs(
+                                        &repository.owner,
+                                        &repository.name,
+                                        actions_job_id,
+                                    )
+                                    .await
+                                {
+                                    Ok(log) => Some(json!(log)),
+                                    Err(error) => {
+                                        tracing::warn!(
+                                            job_id = %job.id,
+                                            check_run_id = check_run.id,
+                                            actions_job_id,
+                                            error = %error,
+                                            "failed to fetch Actions job logs; continuing with check-run evidence"
+                                        );
+                                        None
+                                    }
                                 }
+                            } else {
+                                tracing::debug!(
+                                    job_id = %job.id,
+                                    check_run_id = check_run.id,
+                                    "check run has no Actions job details URL; skipping job logs"
+                                );
+                                None
                             }
                         } else {
                             None
