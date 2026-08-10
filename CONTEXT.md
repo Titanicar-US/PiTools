@@ -17,7 +17,7 @@
 ## Current validation evidence
 
 - `make check` passed after the last implementation edit on 2026-08-10: `cargo fmt --all -- --check`, Clippy with warnings denied, the locked Rust test suite, the 14 BDD scenarios (14 passed, 41 steps passed), and the Pi worker check (16 tests passed). Waiting-approval Skip/Cancel behavior also passed the focused PR-control and PostgreSQL queue contracts.
-- GitHub Actions PR check `31362529440` passed in 3m40s for the documentation-synchronized head after updating checkout/setup-node to Node 24-compatible pinned releases; the run reported no deprecation annotation.
+- GitHub Actions PR checks for the published branch have passed after updating checkout/setup-node to Node 24-compatible pinned releases; the current status is tracked by PR #1 and no deprecation annotation remains.
 - Helm security rendering, local Compose validation with dummy non-production variables, the non-root core image build (`sha256:98a160382142b3ff3d9c79861ccc8d267ab85fb3c84132f17857fe3bf0c291`), and the corrected pinned-NATS request/reply smoke have passed. The core image reports `pitools 0.1.0`; the runner returns request-bound diagnosis-only JSON when no provider workflow is selected.
 - The runner dependency audit reports 3 upstream transitive npm advisories (1 moderate, 2 high, 0 critical) that the dependency advisor did not authorize an override for; this remains a release review item.
 
