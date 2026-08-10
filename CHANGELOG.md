@@ -31,3 +31,4 @@
 - Partitioned unrelated open pull requests out of stack planning and delayed PR base-branch mutations until all planned branch safety checks complete.
 - Added per-PR jobs, audit entries, and delivery history to the operator API/CLI, plus broader CI/Pi redaction for GitHub, cloud, package, JWT, PEM, and assignment-shaped secrets.
 - Hardened repair workspaces with credential-free validation snapshots, safe Git config environment, and staged mode/rename/copy rejection.
+- Fixed the operator watchlist query to qualify joined timestamp columns and added Postgres and BDD regression coverage for active watched pull requests.

@@ -2,6 +2,7 @@ use chrono::{Duration, Utc};
 use pitools::{
     db::Database,
     queue::{JobKind, JobQueue, JobSpec},
+    repository::Repositories,
 };
 use sqlx::{AssertSqlSafe, PgPool, postgres::PgPoolOptions};
 use url::Url;
@@ -152,6 +153,34 @@ impl PostgresFixture {
 
 fn generated_database_id() -> i64 {
     (Uuid::new_v4().as_u128() & i64::MAX as u128) as i64
+}
+
+#[tokio::test]
+async fn postgres_open_watchlist_query_returns_active_pull_requests() {
+    let Some(fixture) = PostgresFixture::start().await else {
+        return;
+    };
+    sqlx::query(
+        "INSERT INTO pull_requests
+            (repository_id, number, github_id, title, url, state, head_sha, base_sha,
+             head_branch, base_branch, author_login, watched)
+         VALUES ($1, 7, 1007, 'PR', 'https://github.com/acme/widgets/pull/7', 'open',
+                 'head', 'base', 'feature', 'main', 'author', TRUE)",
+    )
+    .bind(fixture.repository_id)
+    .execute(fixture.database.pool())
+    .await
+    .expect("insert watched pull request");
+
+    let rows = Repositories::new(fixture.database.clone())
+        .open_pull_requests()
+        .await
+        .expect("read active watchlist");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].repository_id, fixture.repository_id);
+    assert_eq!(rows[0].number, 7);
+
+    fixture.cleanup().await;
 }
 
 #[tokio::test]

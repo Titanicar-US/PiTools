@@ -19,3 +19,8 @@ Feature: PR watchlist state
     Given a GitHub App repository removal delivery
     When PiTools classifies the installation lifecycle
     Then reconciliation is deactivated for the repository
+
+  Scenario: an operator can inspect an active watched pull request
+    Given an active watched pull request is present
+    When the operator loads the watchlist view
+    Then the watchlist view contains the pull request

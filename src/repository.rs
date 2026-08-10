@@ -923,7 +923,8 @@ impl Repositories {
 
     pub async fn open_pull_requests(&self) -> Result<Vec<PullRequestRow>, RepositoryError> {
         let rows = sqlx::query(
-            "SELECT repository_id, number, title, url, state, updated_at
+            "SELECT pull_requests.repository_id, pull_requests.number, pull_requests.title,
+                    pull_requests.url, pull_requests.state, pull_requests.updated_at AS updated_at
              FROM pull_requests
              JOIN repositories ON repositories.id = pull_requests.repository_id
              JOIN installations ON installations.id = repositories.installation_id

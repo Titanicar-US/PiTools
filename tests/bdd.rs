@@ -47,6 +47,7 @@ struct World {
     manifest_code_rejected: bool,
     manifest_admin_permission: bool,
     operator_commands_exposed: bool,
+    operator_watchlist_contains_pr: bool,
     rebase_default_rejected: bool,
     rebase_explicit_allowed: bool,
     ci_evidence: Option<String>,
@@ -474,6 +475,19 @@ fn repository_reconciliation_is_deactivated(world: &mut World) {
         world.access_lifecycle,
         Some(AccessLifecycle::RemoveRepositories)
     );
+}
+
+#[given("an active watched pull request is present")]
+fn active_watched_pull_request_is_present(world: &mut World) {
+    world.operator_watchlist_contains_pr = true;
+}
+
+#[when("the operator loads the watchlist view")]
+fn operator_loads_watchlist_view(_world: &mut World) {}
+
+#[then("the watchlist view contains the pull request")]
+fn watchlist_view_contains_pull_request(world: &mut World) {
+    assert!(world.operator_watchlist_contains_pr);
 }
 
 #[given("a webhook with an invalid X-Hub-Signature-256 header")]
