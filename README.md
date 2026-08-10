@@ -49,7 +49,7 @@ The Skip and Cancel actions remain available while a plan is waiting for approva
 
 ## Deployment
 
-The `Dockerfile`, `runner/`, `workers/pi/`, and `helm/pitools/` directories provide the application packaging. Local Compose is for development and acceptance only. Production dev01 integration is owned by the Flux infrastructure repository and should consume the Helm chart with external PostgreSQL and NATS endpoints.
+The `Dockerfile`, `runner/`, `workers/pi/`, and `helm/pitools/` directories provide the application packaging. Local Compose is for development and acceptance only. The protected `build-image` workflow publishes multi-architecture core and runner images on approved `v*` tags and records immutable GHCR digests in its job summaries. Production dev01 integration is owned by the Flux infrastructure repository and should consume those digests through the Helm chart with external PostgreSQL and NATS endpoints.
 
 The server exposes low-cardinality Prometheus counters at `/metrics`; keep that route internal to the dev01 monitoring network when the ingress is configured.
 
