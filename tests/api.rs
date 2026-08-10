@@ -10,6 +10,7 @@ fn state() -> AppState {
         webhook_secret: SecretString::from("secret"),
         repositories: None,
         queue: None,
+        nats: None,
         admin_bearer_token_hash: SecretString::from("invalid"),
         metrics: Arc::new(Metrics::default()),
     }

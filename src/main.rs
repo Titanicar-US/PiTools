@@ -123,7 +123,7 @@ async fn main() -> Result<()> {
                 }
             };
             let repositories = Repositories::new(database.clone());
-            let queue = JobQueue::new(database, nats);
+            let queue = JobQueue::new(database, nats.clone());
             tokio::spawn(periodic_reconcile_loop(
                 repositories.clone(),
                 queue.clone(),
@@ -134,6 +134,7 @@ async fn main() -> Result<()> {
                 webhook_secret: config.github_webhook_secret.clone(),
                 repositories: Some(repositories),
                 queue: Some(queue),
+                nats,
                 admin_bearer_token_hash: config.admin_bearer_token_hash.clone(),
                 metrics: Arc::new(Metrics::default()),
             };

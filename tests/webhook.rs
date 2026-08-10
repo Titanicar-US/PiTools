@@ -20,6 +20,7 @@ async fn webhook_rejects_invalid_signature_before_persistence() {
         webhook_secret: SecretString::from("secret"),
         repositories: None,
         queue: None,
+        nats: None,
         admin_bearer_token_hash: SecretString::from("invalid"),
         metrics: Arc::new(pitools::metrics::Metrics::default()),
     };
@@ -47,6 +48,7 @@ async fn webhook_verifies_signature_before_reporting_missing_persistence() {
         webhook_secret: SecretString::from("secret"),
         repositories: None,
         queue: None,
+        nats: None,
         admin_bearer_token_hash: SecretString::from("invalid"),
         metrics: Arc::new(pitools::metrics::Metrics::default()),
     };

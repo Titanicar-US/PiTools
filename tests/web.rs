@@ -20,6 +20,33 @@ async fn health_endpoint_is_available() {
 }
 
 #[tokio::test]
+async fn readiness_rejects_when_nats_is_not_connected() {
+    let state = AppState {
+        webhook_secret: SecretString::from("secret"),
+        repositories: None,
+        queue: None,
+        nats: None,
+        admin_bearer_token_hash: SecretString::from("invalid"),
+        metrics: Arc::new(Metrics::default()),
+    };
+    let response = web::router_with_state(state)
+        .oneshot(
+            Request::builder()
+                .uri("/readyz")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+
+    assert_eq!(response.status(), 503);
+    let body = axum::body::to_bytes(response.into_body(), 1024)
+        .await
+        .expect("body");
+    assert_eq!(body.as_ref(), b"nats unavailable");
+}
+
+#[tokio::test]
 async fn webhook_is_not_mutating_before_verification_is_implemented() {
     let response = web::router()
         .oneshot(
@@ -62,6 +89,7 @@ async fn metrics_endpoint_returns_prometheus_text() {
         webhook_secret: SecretString::from("secret"),
         repositories: None,
         queue: None,
+        nats: None,
         admin_bearer_token_hash: SecretString::from("invalid"),
         metrics,
     };

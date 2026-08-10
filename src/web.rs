@@ -61,6 +61,20 @@ async fn ready() -> impl IntoResponse {
 }
 
 async fn ready_with_state(State(state): State<AppState>) -> impl IntoResponse {
+    let Some(nats) = state.nats.as_ref() else {
+        return (StatusCode::SERVICE_UNAVAILABLE, "nats unavailable");
+    };
+    match tokio::time::timeout(std::time::Duration::from_secs(2), nats.flush()).await {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => {
+            tracing::warn!(error = %error, "readiness NATS check failed");
+            return (StatusCode::SERVICE_UNAVAILABLE, "nats unavailable");
+        }
+        Err(_) => {
+            tracing::warn!("readiness NATS check timed out");
+            return (StatusCode::SERVICE_UNAVAILABLE, "nats unavailable");
+        }
+    }
     let Some(repositories) = state.repositories.as_ref() else {
         return (StatusCode::SERVICE_UNAVAILABLE, "database unavailable");
     };

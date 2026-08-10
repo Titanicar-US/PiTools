@@ -154,7 +154,7 @@ The Flux owner submits and reconciles the infrastructure change through the exis
 6. direct `/healthz` and `/readyz` checks through an authorized internal path;
 7. public TLS and webhook-route checks through the approved hostname.
 
-The current `/readyz` handler includes a PostgreSQL connectivity check. It does not prove NATS, GitHub, or model-provider connectivity, and it is not a substitute for database migration or durability evidence. Verify each dependency independently.
+The current `/readyz` handler includes a PostgreSQL connectivity check and a bounded NATS flush check. It does not prove GitHub or model-provider connectivity, and it is not a substitute for database migration or durability evidence. Verify each remaining dependency independently.
 
 ## GitHub App configuration and authenticated UAT
 

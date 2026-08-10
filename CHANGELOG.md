@@ -16,4 +16,5 @@
 - Added a confirmation-gated release helper that targets canonical `main` and drives the protected image publication workflow.
 - Closed the Helm handoff gap by requiring an explicit, Pi-worker-only model-provider HTTPS egress allowlist in the deployment example and render contract.
 - Added a fail-closed, separately secret-backed opt-in for provider SDK execution in the Pi worker.
+- Hardened `/readyz` with a bounded NATS flush probe alongside the PostgreSQL check.
 - Updated pinned GitHub Actions to current Node 24-compatible major releases after hosted CI reported the Node 20 deprecation warning.

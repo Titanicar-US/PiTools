@@ -9,6 +9,7 @@ pub struct AppState {
     pub webhook_secret: SecretString,
     pub repositories: Option<Repositories>,
     pub queue: Option<JobQueue>,
+    pub nats: Option<async_nats::Client>,
     pub admin_bearer_token_hash: SecretString,
     pub metrics: Arc<Metrics>,
 }
