@@ -2,7 +2,7 @@ use chrono::{Duration, Utc};
 use pitools::{
     db::Database,
     github::{auth::InstallationToken, client::GitHubClient, events::DeliveryEnvelope},
-    pr_controls::{FinalSummary, ItemStatus, PlanItem},
+    pr_controls::{FinalSummary, ItemStatus, PlanItem, bind_approval_details},
     queue::{JobKind, JobQueue, JobSpec},
     repository::Repositories,
     workflow::{WorkCoordinator, process_check_run_control},
@@ -488,6 +488,11 @@ async fn postgres_queue_hardening_contracts() {
     .expect("read cancelled job");
     assert_eq!(cancelled, ("cancelled".into(), true, None, None));
 
+    let approval_plan = serde_json::json!({"source": "approval"});
+    let approval_details = bind_approval_details(
+        &approval_plan,
+        serde_json::json!({"diagnosis": "needs approval"}),
+    );
     let approval_id = queue
         .enqueue(fixture.spec(105, JobKind::CiRepair, "approval"))
         .await
@@ -503,7 +508,10 @@ async fn postgres_queue_hardening_contracts() {
                 approval_id,
                 "worker-approval",
                 approval_lease.lease_token,
-                serde_json::json!({"diagnosis": "needs approval"}),
+                serde_json::json!({
+                    "diagnosis": "needs approval",
+                    "approval_details": approval_details,
+                }),
             )
             .await
             .expect("move job to approval state")
@@ -524,6 +532,12 @@ async fn postgres_queue_hardening_contracts() {
             .await
             .expect("read approved job");
     assert_eq!(approved, ("queued".into(), true));
+    assert!(
+        queue
+            .request_cancel(approval_id)
+            .await
+            .expect("clear approved job fixture")
+    );
 
     let waiting_skip_id = queue
         .enqueue(fixture.spec(106, JobKind::CiRepair, "waiting-skip"))
