@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Made `pitools doctor` follow GitHub App installation pagination links and sort reported account names deterministically.
 - Made `make check` enforce Rust formatting and the fail-closed Helm security render contract.
 - Bootstrapped the Rust GitHub App control plane, signed webhook receiver, durable Postgres watchlist, readiness evaluation, operator API, and CLI.
 - Added living work-plan comments, immutable final summaries, and GitHub Check Run Skip/Cancel actions.

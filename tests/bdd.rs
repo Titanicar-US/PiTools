@@ -65,12 +65,12 @@ struct World {
     github_app_status: Option<GitHubAppStatus>,
 }
 
-#[given("a GitHub App is authenticated with one selected installation")]
+#[given("a GitHub App is authenticated with selected installations")]
 fn authenticated_github_app(world: &mut World) {
     world.github_app_status = Some(GitHubAppStatus::new(
         42,
         "PiTools",
-        vec!["Titanicar-US".into()],
+        vec!["Titanicar-US".into(), "PiTools-Test".into()],
     ));
 }
 
@@ -90,8 +90,9 @@ fn reports_github_app_status(world: &mut World) {
     let body = world.notification_body.as_deref().expect("doctor output");
     assert!(body.contains("github_app_id=42"));
     assert!(body.contains("github_app_name=PiTools"));
-    assert!(body.contains("installations=1"));
+    assert!(body.contains("installations=2"));
     assert!(body.contains("Titanicar-US"));
+    assert!(body.contains("PiTools-Test"));
 }
 
 #[given("a PiTools work plan is about to start")]

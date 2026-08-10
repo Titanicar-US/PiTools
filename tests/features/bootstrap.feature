@@ -10,7 +10,7 @@ Feature: PiTools bootstrap
     When the operator reads the CLI help
     Then the CLI exposes bounded inspection and cancellation commands
 
-  Scenario: doctor reports the GitHub App identity and installations
-    Given a GitHub App is authenticated with one selected installation
+  Scenario: doctor reports all GitHub App installations
+    Given a GitHub App is authenticated with selected installations
     When the doctor renders GitHub App status
     Then the doctor reports the App identity and installation count

@@ -2,10 +2,12 @@ use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-use reqwest::StatusCode;
+use reqwest::{StatusCode, header::HeaderMap};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use url::Url;
+
+const MAX_APP_INSTALLATION_PAGES: u32 = 100;
 
 #[derive(Clone)]
 pub struct GitHubAppAuth {
@@ -101,14 +103,13 @@ impl GitHubAppAuth {
                 reported: identity.id,
             });
         }
-        let installations: Vec<AppInstallationResponse> = self
-            .app_get("app/installations?per_page=100&page=1", jwt)
-            .await?;
+        let installations = self.app_installations(jwt).await?;
         let installation_count = installations.len();
-        let installation_accounts: Vec<String> = installations
+        let mut installation_accounts: Vec<String> = installations
             .into_iter()
             .filter_map(|installation| installation.account?.login)
             .collect();
+        installation_accounts.sort_unstable();
         Ok(GitHubAppStatus {
             app_id: identity.id,
             app_name: identity.name,
@@ -122,6 +123,40 @@ impl GitHubAppAuth {
         path: &str,
         jwt: &SecretString,
     ) -> Result<T, GitHubAuthError> {
+        self.app_get_with_headers(path, jwt)
+            .await
+            .map(|(value, _)| value)
+    }
+
+    async fn app_installations(
+        &self,
+        jwt: &SecretString,
+    ) -> Result<Vec<AppInstallationResponse>, GitHubAuthError> {
+        let mut page = 1;
+        let mut installations = Vec::new();
+        loop {
+            let path = format!("app/installations?per_page=100&page={page}");
+            let (page_installations, headers) = self
+                .app_get_with_headers::<Vec<AppInstallationResponse>>(&path, jwt)
+                .await?;
+            installations.extend(page_installations);
+            if !has_next_page(&headers) {
+                return Ok(installations);
+            }
+            page += 1;
+            if page > MAX_APP_INSTALLATION_PAGES {
+                return Err(GitHubAuthError::AppInstallationPaginationLimit {
+                    max_pages: MAX_APP_INSTALLATION_PAGES,
+                });
+            }
+        }
+    }
+
+    async fn app_get_with_headers<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        jwt: &SecretString,
+    ) -> Result<(T, HeaderMap), GitHubAuthError> {
         let url = self
             .api_base
             .join(path)
@@ -145,10 +180,12 @@ impl GitHubAppAuth {
                     .unwrap_or_else(|_| "unreadable response".into()),
             });
         }
-        response
+        let headers = response.headers().clone();
+        let value = response
             .json::<T>()
             .await
-            .map_err(|error| GitHubAuthError::Response(error.to_string()))
+            .map_err(|error| GitHubAuthError::Response(error.to_string()))?;
+        Ok((value, headers))
     }
 
     pub async fn installation_token_with_scope(
@@ -235,6 +272,24 @@ pub struct GitHubAppStatus {
     pub installation_accounts: Vec<String>,
 }
 
+fn has_next_page(headers: &HeaderMap) -> bool {
+    headers
+        .get(reqwest::header::LINK)
+        .and_then(|value| value.to_str().ok())
+        .map(|link| {
+            link.split(',').any(|entry| {
+                entry.split(';').skip(1).any(|parameter| {
+                    parameter
+                        .trim()
+                        .strip_prefix("rel=")
+                        .map(|value| value.trim_matches('"') == "next")
+                        .unwrap_or(false)
+                })
+            })
+        })
+        .unwrap_or(false)
+}
+
 impl GitHubAppStatus {
     pub fn new(
         app_id: u64,
@@ -305,6 +360,8 @@ pub enum GitHubAuthError {
     Api { status: u16, body: String },
     #[error("configured GitHub App ID {configured} did not match API identity {reported}")]
     AppIdentityMismatch { configured: u64, reported: u64 },
+    #[error("GitHub App installation pagination exceeded {max_pages} pages")]
+    AppInstallationPaginationLimit { max_pages: u32 },
 }
 
 #[cfg(test)]
@@ -360,6 +417,69 @@ mod tests {
         assert_eq!(status.installation_count, 2);
         assert_eq!(status.installation_accounts, vec!["Titanicar-US"]);
         assert!(status.render().contains("installations=2"));
+    }
+
+    #[tokio::test]
+    async fn app_status_follows_installation_pagination_links() {
+        let server = MockServer::start().await;
+        let authenticated_get = || {
+            Mock::given(method("GET"))
+                .and(header("authorization", "Bearer test-app-jwt"))
+                .and(header("x-github-api-version", "2022-11-28"))
+        };
+        authenticated_get()
+            .and(path("/app"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": 42,
+                "name": "PiTools"
+            })))
+            .mount(&server)
+            .await;
+        authenticated_get()
+            .and(path("/app/installations"))
+            .and(query_param("per_page", "100"))
+            .and(query_param("page", "1"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header(
+                        "link",
+                        format!(
+                            "<{}/app/installations?per_page=100&page=2>; rel=\"next\"",
+                            server.uri()
+                        ),
+                    )
+                    .set_body_json(json!([
+                        {"id": 7, "account": {"login": "Titanicar-US"}}
+                    ])),
+            )
+            .mount(&server)
+            .await;
+        authenticated_get()
+            .and(path("/app/installations"))
+            .and(query_param("per_page", "100"))
+            .and(query_param("page", "2"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"id": 8, "account": {"login": "PiTools-Test"}}
+            ])))
+            .mount(&server)
+            .await;
+
+        let auth = GitHubAppAuth {
+            app_id: 42,
+            private_key_pem: SecretString::from("test-only-key"),
+            client: reqwest::Client::new(),
+            api_base: Url::parse(&format!("{}/", server.uri())).expect("mock URL is valid"),
+        };
+        let status = auth
+            .app_status_with_jwt(&SecretString::from("test-app-jwt"))
+            .await
+            .expect("paginated App status succeeds");
+
+        assert_eq!(status.installation_count, 2);
+        assert_eq!(
+            status.installation_accounts,
+            vec!["PiTools-Test", "Titanicar-US"]
+        );
     }
 
     #[tokio::test]
