@@ -26,6 +26,7 @@ Provision three externally managed Kubernetes Secrets through the infrastructure
 | Application | `github-app-id`, `github-app-private-key.pem`, `github-webhook-secret`, `admin-bearer-token-hash` |
 | PostgreSQL | `database-url` |
 | NATS | `nats-url` |
+| Pi provider (optional) | Provider-specific keys named by `piWorker.provider.secretEnv` |
 
 The chart references these Secrets and never creates them. Restrict the GitHub private key to the core PiTools pod only and rotate it through the GitHub App and secret owner procedures. The Pi worker must not mount or receive the application Secret, a Kubernetes service-account token, or GitHub API egress.
 
@@ -45,6 +46,20 @@ worker:
 
 piWorker:
   enabled: true
+  provider:
+    enabled: false
+    existingSecret: "<separate-provider-secret-name>"
+    secretEnv:
+      - name: "<provider-api-key-environment-name>"
+        key: "<provider-api-key-secret-key>"
+  networkPolicy:
+    egress:
+      https:
+        enabled: true
+        to:
+          - ipBlock:
+              cidr: "<platform-approved-model-provider-cidr>"
+        port: 443
   image:
     repository: "<release-owned-runner-image-repository>"
     digest: "sha256:<release-owned-runner-image-digest>"
@@ -105,7 +120,7 @@ networkPolicy:
             cidr: "<platform-approved-https-egress-cidr>"
 ```
 
-Use namespace/pod selectors instead of CIDRs when PostgreSQL or NATS is in-cluster. Narrow HTTPS egress to the platform's approved proxy or destination ranges; do not use `0.0.0.0/0` as a convenience default.
+Use namespace/pod selectors instead of CIDRs when PostgreSQL or NATS is in-cluster. Narrow core HTTPS egress to the platform's approved GitHub API/proxy ranges and Pi-worker HTTPS egress to the approved model-provider or proxy ranges; do not use `0.0.0.0/0` as a convenience default. The chart keeps Pi-worker HTTPS disabled unless this separate `piWorker.networkPolicy.egress.https` allowlist is explicitly supplied.
 
 ## Pre-reconciliation checks
 

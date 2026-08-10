@@ -56,4 +56,8 @@ helm/pitools/ci/verify-render.sh
 
 NetworkPolicy is fail-closed. Environment values must identify ingress peers and DNS, PostgreSQL, NATS, and any approved HTTPS egress peers. Kubernetes NetworkPolicy does not accept DNS names; use namespace/pod selectors for in-cluster services or stable, platform-approved CIDRs for external services.
 
+Provider access is a separate Pi-worker egress contract: set `piWorker.networkPolicy.egress.https.enabled=true` and provide only the approved model-provider or proxy peers. The core `networkPolicy.egress.https` setting does not grant the Pi worker provider access, and the chart defaults both paths to deny.
+
+Provider-backed SDK execution is also opt-in. Set `piWorker.provider.enabled=true`, reference a separate external Secret with `piWorker.provider.existingSecret`, and map only provider credential keys through `piWorker.provider.secretEnv`. The chart rejects reuse of the application Secret and rejects GitHub, database, NATS, or PiTools control-plane environment names. Leave the provider disabled for deterministic diagnosis-only operation.
+
 With `piWorker.enabled=true`, the chart runs the long-lived NATS worker. Keep NATS egress restricted to the approved NATS peer; the worker still has no GitHub API egress or application secret. The Rust worker owns durable job state, request binding, timeouts, and mutation approval. The HTTP server also performs scoped periodic open-PR inventory so a missed webhook does not permanently remove a PR from observation once its installation/repository record exists.

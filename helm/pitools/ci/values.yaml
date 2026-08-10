@@ -16,6 +16,14 @@ piWorker:
   image:
     repository: ghcr.io/example/pitools-runner
     digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  networkPolicy:
+    egress:
+      https:
+        enabled: true
+        to:
+          - ipBlock:
+              cidr: 192.0.2.12/32
+        port: 443
 
 networkPolicy:
   ingress:

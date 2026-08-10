@@ -53,6 +53,8 @@ The `Dockerfile`, `runner/`, `workers/pi/`, and `helm/pitools/` directories prov
 
 After a human merges the validated PR into `main`, publish an explicit release from the canonical repository with `make publish PITOOLS_RELEASE_TAG=v0.1.0 PITOOLS_PUBLISH_CONFIRM=yes`. The command only accepts stable semantic-version tags, requires the confirmation flag, creates the GitHub release against `main`, and lets the protected image workflow produce the immutable digests for the Flux handoff. It is intentionally not run during local validation.
 
+Provider-backed Pi execution is disabled by default. The Helm chart enables it only through a separate provider Secret, explicit `secretEnv` mappings, and a Pi-worker-only HTTPS egress allowlist; the application Secret and GitHub/control-plane environment names are rejected at render time.
+
 The server exposes low-cardinality Prometheus counters at `/metrics`; keep that route internal to the dev01 monitoring network when the ingress is configured.
 
 ## License

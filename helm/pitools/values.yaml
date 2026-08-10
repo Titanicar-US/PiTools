@@ -121,6 +121,11 @@ piWorker:
         enabled: false
         to: []
         port: 443
+  provider:
+    # Provider-backed diagnosis is opt-in and must use a separate external Secret.
+    enabled: false
+    existingSecret: ""
+    secretEnv: []
 
 networkPolicy:
   enabled: true
