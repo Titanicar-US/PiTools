@@ -555,6 +555,7 @@ impl WorkerRuntime {
                     line: feedback.line,
                 },
                 &context.pull_request.head_branch,
+                &context.pull_request.head_sha,
                 &context.policy.validation_commands,
             )
             .await?;
@@ -670,6 +671,7 @@ impl WorkerRuntime {
                 &pi_result.proposed_patches,
                 &context.policy.repair_allowed_paths,
                 &context.pull_request.head_branch,
+                &context.pull_request.head_sha,
                 &context.policy.validation_commands,
             )
             .await?;

@@ -10,6 +10,7 @@
 
 - Human merge/approval remains outside PiTools.
 - CI Pi output is a bounded diagnosis/proposal; only exact allowlisted unified patches with explicit approval, a fresh head read, configured validation, and an auditable push may mutate a PR.
+- Approved feedback and CI repair pushes now re-read the exact remote branch head immediately before pushing, so branch movement after validation fails closed.
 - Stack detection produces a deterministic order; declared stack base updates and branch rebases require explicit approval.
 - Force-push is prohibited by default; a history rewrite is admitted only for an exact `bot_owned_branches` entry when `allow_bot_force_push` is true, and uses `--force-with-lease` against the fresh head.
 - Fork-head repairs fail closed until a separately scoped head-repository push contract is added.

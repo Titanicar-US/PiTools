@@ -108,6 +108,7 @@ impl RepositoryWorkspace {
         actor_allowlist: &[String],
         feedback: &Feedback,
         branch: &str,
+        expected_head_sha: &str,
         validation_commands: &[crate::policy::ValidationCommand],
     ) -> Result<RepairCommit, WorkspaceError> {
         self.ensure_clean().await?;
@@ -154,6 +155,8 @@ impl RepositoryWorkspace {
             ],
         )
         .await?;
+        lease.ensure().await?;
+        self.ensure_remote_head(branch, expected_head_sha).await?;
         lease.ensure().await?;
         self.run(
             &self.repository_root,
@@ -205,6 +208,7 @@ impl RepositoryWorkspace {
         patches: &[CiPatch],
         allowed_paths: &[String],
         branch: &str,
+        expected_head_sha: &str,
         validation_commands: &[crate::policy::ValidationCommand],
     ) -> Result<CiRepairCommit, WorkspaceError> {
         validate_patch_set(patches, allowed_paths)
@@ -264,6 +268,8 @@ impl RepositoryWorkspace {
             ],
         )
         .await?;
+        lease.ensure().await?;
+        self.ensure_remote_head(branch, expected_head_sha).await?;
         lease.ensure().await?;
         self.run(
             &self.repository_root,
@@ -524,6 +530,35 @@ impl RepositoryWorkspace {
         }
     }
 
+    async fn ensure_remote_head(
+        &self,
+        branch: &str,
+        expected_head_sha: &str,
+    ) -> Result<(), WorkspaceError> {
+        validate_sha(expected_head_sha)?;
+        let argv = remote_head_argv(branch)?;
+        let result = self.run_result(&self.repository_root, &argv).await?;
+        if !result.success {
+            return Err(WorkspaceError::CommandFailed {
+                argv,
+                stderr: result.stderr,
+            });
+        }
+        let observed = result.stdout.split_whitespace().next().unwrap_or_default();
+        if observed != expected_head_sha {
+            return Err(WorkspaceError::RemoteHeadChanged {
+                branch: branch.into(),
+                expected: expected_head_sha.into(),
+                observed: if observed.is_empty() {
+                    "missing".into()
+                } else {
+                    observed.into()
+                },
+            });
+        }
+        Ok(())
+    }
+
     async fn ensure_clean(&self) -> Result<(), WorkspaceError> {
         let result = self
             .run(
@@ -665,6 +700,17 @@ pub fn rebase_push_argv(
     argv.push("origin".to_owned());
     argv.push(format!("HEAD:refs/heads/{branch}"));
     Ok(argv)
+}
+
+/// Build the exact remote-head probe used immediately before a normal push.
+pub fn remote_head_argv(branch: &str) -> Result<Vec<String>, WorkspaceError> {
+    validate_branch(branch)?;
+    Ok(vec![
+        "git".to_owned(),
+        "ls-remote".to_owned(),
+        "origin".to_owned(),
+        format!("refs/heads/{branch}"),
+    ])
 }
 
 fn validate_segment(value: &str, field: &'static str) -> Result<(), WorkspaceError> {

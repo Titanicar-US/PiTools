@@ -1,4 +1,4 @@
-use pitools::workspace::{RepositoryWorkspace, rebase_push_argv};
+use pitools::workspace::{RepositoryWorkspace, rebase_push_argv, remote_head_argv};
 use secrecy::SecretString;
 
 #[tokio::test]
@@ -72,4 +72,17 @@ fn rebase_push_rejects_branch_argument_injection() {
     let ref_error = rebase_push_argv("feature:bad", "0123456789abcdef", true)
         .expect_err("git ref syntax must be rejected");
     assert!(ref_error.to_string().contains("invalid branch"));
+}
+
+#[test]
+fn remote_head_check_uses_the_exact_branch_ref() {
+    assert_eq!(
+        remote_head_argv("feature/repair").expect("safe branch"),
+        vec![
+            "git".to_owned(),
+            "ls-remote".to_owned(),
+            "origin".to_owned(),
+            "refs/heads/feature/repair".to_owned(),
+        ]
+    );
 }
