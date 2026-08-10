@@ -1,7 +1,8 @@
 use std::fs;
 
 use pitools::feedback::{
-    Feedback, FeedbackError, RepairDecision, RepairDisposition, repair_feedback,
+    Feedback, FeedbackCommentTarget, FeedbackError, RepairDecision, RepairDisposition,
+    parse_feedback_comment_target, repair_feedback,
 };
 use tempfile::tempdir;
 
@@ -183,6 +184,28 @@ fn becomes_resolution_eligible_only_after_apply_succeeds() {
     assert_eq!(applied.disposition, RepairDisposition::Applied);
     assert!(applied.resolution_eligible);
     assert_eq!(fs::read_to_string(target).expect("read fixture"), "new\n");
+}
+
+#[test]
+fn classifies_review_comments_and_pr_conversation_feedback_targets() {
+    assert_eq!(
+        parse_feedback_comment_target("review-comment:71").expect("review comment target"),
+        FeedbackCommentTarget::ReviewComment { comment_id: 71 }
+    );
+    assert_eq!(
+        parse_feedback_comment_target("issue-comment:72").expect("issue comment target"),
+        FeedbackCommentTarget::PullRequestConversation { comment_id: 72 }
+    );
+    assert_eq!(
+        parse_feedback_comment_target("review:73").expect("review target"),
+        FeedbackCommentTarget::PullRequestConversation { comment_id: 73 }
+    );
+}
+
+#[test]
+fn rejects_feedback_targets_with_unknown_or_invalid_ids() {
+    assert!(parse_feedback_comment_target("commit-comment:71").is_err());
+    assert!(parse_feedback_comment_target("issue-comment:not-a-number").is_err());
 }
 
 #[test]

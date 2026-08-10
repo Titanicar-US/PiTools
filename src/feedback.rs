@@ -33,19 +33,100 @@ pub enum RepairDisposition {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FeedbackReplyTarget {
+    ReviewThread,
+    PullRequestConversation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FeedbackCommentTarget {
+    ReviewComment { comment_id: i64 },
+    PullRequestConversation { comment_id: i64 },
+}
+
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum FeedbackTargetError {
+    #[error("feedback target prefix is unsupported")]
+    Unsupported,
+    #[error("feedback target id is invalid")]
+    InvalidId,
+}
+
+pub fn parse_feedback_comment_target(
+    feedback_id: &str,
+) -> Result<FeedbackCommentTarget, FeedbackTargetError> {
+    let (target, comment_id) = if let Some(comment_id) = feedback_id.strip_prefix("review-comment:")
+    {
+        (
+            FeedbackCommentTarget::ReviewComment { comment_id: 0 },
+            comment_id,
+        )
+    } else if let Some(comment_id) = feedback_id.strip_prefix("issue-comment:") {
+        (
+            FeedbackCommentTarget::PullRequestConversation { comment_id: 0 },
+            comment_id,
+        )
+    } else if let Some(comment_id) = feedback_id.strip_prefix("review:") {
+        (
+            FeedbackCommentTarget::PullRequestConversation { comment_id: 0 },
+            comment_id,
+        )
+    } else {
+        return Err(FeedbackTargetError::Unsupported);
+    };
+    let comment_id = comment_id
+        .parse::<i64>()
+        .ok()
+        .filter(|comment_id| *comment_id > 0)
+        .ok_or(FeedbackTargetError::InvalidId)?;
+    Ok(match target {
+        FeedbackCommentTarget::ReviewComment { .. } => {
+            FeedbackCommentTarget::ReviewComment { comment_id }
+        }
+        FeedbackCommentTarget::PullRequestConversation { .. } => {
+            FeedbackCommentTarget::PullRequestConversation { comment_id }
+        }
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeedbackReply<'a> {
-    Applied { path: &'a str, commit: &'a str },
-    Rejected,
+    Applied {
+        target: FeedbackReplyTarget,
+        path: &'a str,
+        commit: &'a str,
+    },
+    Rejected {
+        target: FeedbackReplyTarget,
+    },
 }
 
 pub fn render_feedback_reply(reply: FeedbackReply<'_>) -> String {
     match reply {
-        FeedbackReply::Applied { path, commit } => format!(
+        FeedbackReply::Applied {
+            target: FeedbackReplyTarget::ReviewThread,
+            path,
+            commit,
+        } => format!(
             "PiTools applied this approved automation suggestion to `{}` and pushed commit `{}` after configured validation passed. The review thread is being resolved.",
             safe_reply_fragment(path),
             safe_reply_fragment(commit)
         ),
-        FeedbackReply::Rejected => "PiTools rejected this automation suggestion after deterministic validation failed. No branch change was accepted. The review thread is being resolved; human follow-up remains required.".into(),
+        FeedbackReply::Applied {
+            target: FeedbackReplyTarget::PullRequestConversation,
+            path,
+            commit,
+        } => format!(
+            "PiTools applied this approved automation suggestion to `{}` and pushed commit `{}` after configured validation passed. This PR-level outcome comment records the result; no review thread is available to resolve.",
+            safe_reply_fragment(path),
+            safe_reply_fragment(commit)
+        ),
+        FeedbackReply::Rejected {
+            target: FeedbackReplyTarget::ReviewThread,
+        } => "PiTools rejected this automation suggestion after deterministic validation failed. No branch change was accepted. The review thread is being resolved; human follow-up remains required.".into(),
+        FeedbackReply::Rejected {
+            target: FeedbackReplyTarget::PullRequestConversation,
+        } => "PiTools rejected this automation suggestion after deterministic validation failed. No branch change was accepted. This PR-level outcome comment records the result; no review thread is available to resolve. Human follow-up remains required.".into(),
     }
 }
 

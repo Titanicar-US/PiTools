@@ -53,6 +53,22 @@ struct CiRepairContext<'a> {
     lease: &'a LeaseGuard,
 }
 
+enum FeedbackTarget {
+    ReviewComment { comment_id: i64, thread_id: String },
+    PullRequestConversation,
+}
+
+impl FeedbackTarget {
+    fn reply_target(&self) -> crate::feedback::FeedbackReplyTarget {
+        match self {
+            Self::ReviewComment { .. } => crate::feedback::FeedbackReplyTarget::ReviewThread,
+            Self::PullRequestConversation => {
+                crate::feedback::FeedbackReplyTarget::PullRequestConversation
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct WorkerRuntime {
     queue: JobQueue,
@@ -512,24 +528,28 @@ impl WorkerRuntime {
                 "pull request head changed since the repair plan was created".into(),
             ));
         }
-        let comment_id = if let Some(comment_id) = feedback.id.strip_prefix("review-comment:") {
-            comment_id
-                .parse::<i64>()
-                .map_err(|_| WorkerError::PlanSerialization("invalid review comment id".into()))?
-        } else {
-            return Err(WorkerError::MutationAdmissionRequired(
-                "only review comments expose a resolvable review thread".into(),
-            ));
+        let comment_target = crate::feedback::parse_feedback_comment_target(&feedback.id)
+            .map_err(|error| WorkerError::PlanSerialization(error.to_string()))?;
+        let target = match comment_target {
+            crate::feedback::FeedbackCommentTarget::ReviewComment { comment_id } => {
+                let thread_id = github
+                    .review_thread_id_for_comment(
+                        &context.repository.owner,
+                        &context.repository.name,
+                        context.pull_request.number,
+                        comment_id,
+                    )
+                    .await?
+                    .ok_or(WorkerError::ReviewThreadNotFound(comment_id))?;
+                FeedbackTarget::ReviewComment {
+                    comment_id,
+                    thread_id,
+                }
+            }
+            crate::feedback::FeedbackCommentTarget::PullRequestConversation { .. } => {
+                FeedbackTarget::PullRequestConversation
+            }
         };
-        let review_thread_id = github
-            .review_thread_id_for_comment(
-                &context.repository.owner,
-                &context.repository.name,
-                context.pull_request.number,
-                comment_id,
-            )
-            .await?
-            .ok_or(WorkerError::ReviewThreadNotFound(comment_id))?;
         let workspace = RepositoryWorkspace::clone_branch(
             &context.repository.owner,
             &context.repository.name,
@@ -561,26 +581,26 @@ impl WorkerRuntime {
         {
             Ok(outcome) => outcome,
             Err(error) if is_deterministic_feedback_rejection(&error) => {
-                context.lease.ensure().await?;
-                github
-                    .reply_to_review_comment(
-                        &context.repository.owner,
-                        &context.repository.name,
-                        context.pull_request.number,
-                        comment_id,
-                        &crate::feedback::render_feedback_reply(
-                            crate::feedback::FeedbackReply::Rejected,
-                        ),
-                    )
-                    .await?;
-                context.lease.ensure().await?;
-                github.resolve_review_thread(&review_thread_id).await?;
+                self.publish_feedback_outcome(
+                    github,
+                    context,
+                    &target,
+                    &crate::feedback::render_feedback_reply(
+                        crate::feedback::FeedbackReply::Rejected {
+                            target: target.reply_target(),
+                        },
+                    ),
+                )
+                .await?;
                 self.repositories
                     .mark_feedback_rejected(&feedback_id)
                     .await?;
                 return Ok(json!({
                     "completed": true,
-                    "changes": ["rejected automated feedback after deterministic validation"],
+                    "changes": [match target {
+                        FeedbackTarget::ReviewComment { .. } => "rejected automated feedback after deterministic validation".to_owned(),
+                        FeedbackTarget::PullRequestConversation => "rejected automated feedback and posted a PR-level outcome comment".to_owned(),
+                    }],
                     "tests": [],
                     "remaining_blockers": ["human follow-up remains required for the rejected automation suggestion"],
                     "feedback_disposition": "rejected",
@@ -589,31 +609,74 @@ impl WorkerRuntime {
             }
             Err(error) => return Err(error.into()),
         };
-        context.lease.ensure().await?;
-        github
-            .reply_to_review_comment(
-                &context.repository.owner,
-                &context.repository.name,
-                context.pull_request.number,
-                comment_id,
-                &crate::feedback::render_feedback_reply(crate::feedback::FeedbackReply::Applied {
-                    path: &outcome.path,
-                    commit: &outcome.commit,
-                }),
-            )
-            .await?;
-        context.lease.ensure().await?;
-        github.resolve_review_thread(&review_thread_id).await?;
+        self.publish_feedback_outcome(
+            github,
+            context,
+            &target,
+            &crate::feedback::render_feedback_reply(crate::feedback::FeedbackReply::Applied {
+                target: target.reply_target(),
+                path: &outcome.path,
+                commit: &outcome.commit,
+            }),
+        )
+        .await?;
         self.repositories
             .mark_feedback_resolved(&feedback_id)
             .await?;
+        let change = match target {
+            FeedbackTarget::ReviewComment { .. } => {
+                format!("applied automated feedback to {}", outcome.path)
+            }
+            FeedbackTarget::PullRequestConversation => format!(
+                "applied automated feedback to {} and posted a PR-level outcome comment",
+                outcome.path
+            ),
+        };
         Ok(json!({
             "completed": true,
-            "changes": [format!("applied automated feedback to {}", outcome.path)],
+            "changes": [change],
             "tests": ["configured validation commands passed before push"],
             "commit": outcome.commit,
             "resolution_eligible": true,
         }))
+    }
+
+    async fn publish_feedback_outcome(
+        &self,
+        github: &GitHubClient,
+        context: &FeedbackRepairContext<'_>,
+        target: &FeedbackTarget,
+        body: &str,
+    ) -> Result<(), WorkerError> {
+        context.lease.ensure().await?;
+        match target {
+            FeedbackTarget::ReviewComment { comment_id, .. } => {
+                github
+                    .reply_to_review_comment(
+                        &context.repository.owner,
+                        &context.repository.name,
+                        context.pull_request.number,
+                        *comment_id,
+                        body,
+                    )
+                    .await?;
+            }
+            FeedbackTarget::PullRequestConversation => {
+                github
+                    .create_issue_comment(
+                        &context.repository.owner,
+                        &context.repository.name,
+                        context.pull_request.number,
+                        body,
+                    )
+                    .await?;
+            }
+        }
+        context.lease.ensure().await?;
+        if let FeedbackTarget::ReviewComment { thread_id, .. } = target {
+            github.resolve_review_thread(thread_id).await?;
+        }
+        Ok(())
     }
 
     async fn ci_repair(

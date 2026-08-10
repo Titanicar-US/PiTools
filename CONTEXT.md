@@ -12,14 +12,14 @@
 - Human merge/approval remains outside PiTools.
 - CI Pi output is a bounded diagnosis/proposal; only exact allowlisted unified patches with explicit approval, a fresh head read, configured validation, and an auditable push may mutate a PR.
 - Approved feedback and CI repair pushes now re-read the exact remote branch head immediately before pushing, so branch movement after validation fails closed.
-- Automation feedback outcomes are replied to on the originating review comment before the thread is resolved; deterministic rejection is persisted so the same suggestion is not retried indefinitely, while operational failures leave the thread open.
+- Review-comment automation outcomes are replied to on the originating review comment before the thread is resolved; issue-comment outcomes are recorded in a bounded PR-level comment because no review thread exists. Deterministic rejection is persisted so the same suggestion is not retried indefinitely, while operational failures leave feedback open.
 - Stack detection produces a deterministic order; declared stack base updates and branch rebases require explicit approval.
 - Force-push is prohibited by default; a history rewrite is admitted only for an exact `bot_owned_branches` entry when `allow_bot_force_push` is true, and uses `--force-with-lease` against the fresh head.
 - Fork-head repairs fail closed until a separately scoped head-repository push contract is added.
 
 ## Current validation evidence
 
-- `make check` passed after the last implementation edit on 2026-08-10: `cargo fmt --all -- --check`, Clippy with warnings denied, the locked Rust test suite, the 18 BDD scenarios (18 passed, 53 steps passed), and the Pi worker check (16 tests passed). The focused contracts cover bounded Actions logs, check-run annotations, envelope redaction, oversize rejection, protected operator routes, CLI command discovery, and review-thread feedback outcome replies; waiting-approval Skip/Cancel behavior also passed the focused PR-control and PostgreSQL queue contracts.
+- `make check` passed after the last implementation edit on 2026-08-10: `cargo fmt --all -- --check`, Clippy with warnings denied, the locked Rust test suite, the 20 BDD scenarios (20 passed, 59 steps passed), and the Pi worker check (16 tests passed). The focused contracts cover bounded Actions logs, check-run annotations, envelope redaction, oversize rejection, protected operator routes, CLI command discovery, review-thread feedback replies, and issue-comment outcome rendering; waiting-approval Skip/Cancel behavior also passed the focused PR-control and PostgreSQL queue contracts.
 - GitHub Actions PR checks for the published branch have passed after updating checkout/setup-node to Node 24-compatible pinned releases; the current hosted run is [31375051869](https://github.com/Titanicar-US/PiTools/actions/runs/31375051869), and no deprecation annotation remains.
 - The canonical release helper is confirmation-gated, accepts only `vMAJOR.MINOR.PATCH`, targets `Titanicar-US/PiTools` `main`, and its fake-`gh` contract test passed; no release was created during validation.
 - The image workflow now runs its publication job only for a `v` tag ref and rejects non-semantic tag names before package credentials or image pushes are used.

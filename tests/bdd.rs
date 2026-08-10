@@ -5,8 +5,8 @@ use std::{collections::HashSet, fs, process::Command};
 use cucumber::{World as _, given, then, when};
 use pitools::{
     feedback::{
-        Feedback, FeedbackReply, RepairDecision, RepairDisposition, render_feedback_reply,
-        repair_feedback,
+        Feedback, FeedbackReply, FeedbackReplyTarget, RepairDecision, RepairDisposition,
+        render_feedback_reply, repair_feedback,
     },
     github::events::DeliveryEnvelope,
     github::manifest::validate_manifest_code,
@@ -30,6 +30,7 @@ struct World {
     feedback_applied: bool,
     feedback_contents: Option<String>,
     feedback_outcome: Option<String>,
+    feedback_target: Option<String>,
     feedback_reply: Option<String>,
     manifest_code_rejected: bool,
     operator_commands_exposed: bool,
@@ -417,21 +418,41 @@ fn only_suggested_lines_change(world: &mut World) {
 #[given("an applied automation feedback outcome")]
 fn applied_feedback_outcome(world: &mut World) {
     world.feedback_outcome = Some("applied".into());
+    world.feedback_target = Some("review".into());
 }
 
 #[given("a rejected automation feedback outcome")]
 fn rejected_feedback_outcome(world: &mut World) {
     world.feedback_outcome = Some("rejected".into());
+    world.feedback_target = Some("review".into());
+}
+
+#[given("an applied issue-comment automation feedback outcome")]
+fn applied_issue_comment_feedback_outcome(world: &mut World) {
+    world.feedback_outcome = Some("applied".into());
+    world.feedback_target = Some("issue-comment".into());
+}
+
+#[given("a rejected issue-comment automation feedback outcome")]
+fn rejected_issue_comment_feedback_outcome(world: &mut World) {
+    world.feedback_outcome = Some("rejected".into());
+    world.feedback_target = Some("issue-comment".into());
 }
 
 #[when("PiTools renders the feedback outcome comment")]
 fn renders_feedback_outcome_comment(world: &mut World) {
+    let target = match world.feedback_target.as_deref() {
+        Some("issue-comment") => FeedbackReplyTarget::PullRequestConversation,
+        Some("review") => FeedbackReplyTarget::ReviewThread,
+        other => panic!("unexpected feedback target: {other:?}"),
+    };
     world.feedback_reply = Some(match world.feedback_outcome.as_deref() {
         Some("applied") => render_feedback_reply(FeedbackReply::Applied {
+            target,
             path: "src/lib.rs",
             commit: "0123456789abcdef",
         }),
-        Some("rejected") => render_feedback_reply(FeedbackReply::Rejected),
+        Some("rejected") => render_feedback_reply(FeedbackReply::Rejected { target }),
         other => panic!("unexpected feedback outcome: {other:?}"),
     });
 }
@@ -449,6 +470,23 @@ fn rejected_feedback_comment_requires_human_follow_up(world: &mut World) {
     assert!(reply.contains("rejected"));
     assert!(reply.contains("human follow-up remains required"));
     assert!(reply.contains("thread is being resolved"));
+}
+
+#[then("the issue-comment outcome explains that no review thread is available")]
+fn issue_comment_applied_outcome_has_no_thread_claim(world: &mut World) {
+    let reply = world.feedback_reply.as_deref().expect("feedback reply");
+    assert!(reply.contains("PR-level outcome comment records the result"));
+    assert!(reply.contains("no review thread is available to resolve"));
+}
+
+#[then(
+    "the issue-comment outcome says the suggestion was rejected without claiming thread resolution"
+)]
+fn issue_comment_rejected_outcome_has_no_thread_claim(world: &mut World) {
+    let reply = world.feedback_reply.as_deref().expect("feedback reply");
+    assert!(reply.contains("rejected"));
+    assert!(reply.contains("no review thread is available to resolve"));
+    assert!(!reply.contains("thread is being resolved"));
 }
 
 #[given("an unsafe GitHub App manifest conversion code")]
