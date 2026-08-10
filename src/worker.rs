@@ -19,7 +19,9 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
-    ci::{CiMutationAdmission, admit_ci_mutation, prepare_ci_evidence},
+    ci::{
+        CiMutationAdmission, admit_ci_mutation, is_repairable_check_conclusion, prepare_ci_evidence,
+    },
     github::{
         auth::{GitHubAppAuth, InstallationTokenScope},
         client::{GitHubClient, actions_job_id_from_details_url},
@@ -842,7 +844,12 @@ impl WorkerRuntime {
         let failed_checks: Vec<_> = reconciled
             .checks
             .iter()
-            .filter(|check| check.conclusion.as_deref() == Some("failure"))
+            .filter(|check| {
+                check
+                    .conclusion
+                    .as_deref()
+                    .is_some_and(is_repairable_check_conclusion)
+            })
             .cloned()
             .collect();
         if !failed_checks.is_empty() {
@@ -1178,7 +1185,7 @@ impl WorkerRuntime {
                         let actions_log = if check_run
                             .conclusion
                             .as_deref()
-                            .is_some_and(is_failed_check_conclusion)
+                            .is_some_and(is_repairable_check_conclusion)
                         {
                             if let Some(actions_job_id) =
                                 actions_job_id_from_details_url(check_run.details_url.as_deref())
@@ -1377,13 +1384,6 @@ fn waiting_for_approval(summary: &str, blocker: &str) -> serde_json::Value {
         "remaining_blockers": [blocker],
         "requires_approval": true,
     })
-}
-
-fn is_failed_check_conclusion(conclusion: &str) -> bool {
-    matches!(
-        conclusion,
-        "action_required" | "cancelled" | "failure" | "startup_failure" | "stale" | "timed_out"
-    )
 }
 
 fn job_kind_summary(kind: &str) -> &'static str {

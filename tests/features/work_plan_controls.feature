@@ -50,6 +50,11 @@ Feature: pull request work-plan controls
     When PiTools admits the CI mutation
     Then the CI mutation is rejected without explicit approval
 
+  Scenario: non-success Actions conclusions enter CI repair
+    Given a cancelled GitHub Actions check
+    When PiTools classifies the check conclusion for repair
+    Then the CI repair path accepts the check conclusion
+
   Scenario: Pi worker rejects non-canonical snapshot paths
     Given a Pi worker request with a non-canonical snapshot path
     When PiTools validates the Pi worker request

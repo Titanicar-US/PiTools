@@ -3,10 +3,28 @@ use std::{path::Path, time::Duration};
 use pitools::{
     ci::{
         CiFailure, CiFailureInput, CiFailureKind, CiMutationAdmission, CiPatch, CiRepairPlan,
-        WorktreePlan, admit_ci_mutation, prepare_ci_evidence, redact_ci_text, validate_patch_set,
+        WorktreePlan, admit_ci_mutation, is_repairable_check_conclusion, prepare_ci_evidence,
+        redact_ci_text, validate_patch_set,
     },
     policy::ValidationCommand,
 };
+
+#[test]
+fn repairable_check_conclusions_cover_non_success_actions_states() {
+    for conclusion in [
+        "action_required",
+        "cancelled",
+        "failure",
+        "startup_failure",
+        "stale",
+        "timed_out",
+    ] {
+        assert!(is_repairable_check_conclusion(conclusion), "{conclusion}");
+    }
+    for conclusion in ["neutral", "success", "skipped"] {
+        assert!(!is_repairable_check_conclusion(conclusion), "{conclusion}");
+    }
+}
 
 #[test]
 fn ci_failure_classification_and_typed_plan_are_deterministic() {

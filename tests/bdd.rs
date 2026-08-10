@@ -47,6 +47,7 @@ struct World {
     ci_evidence: Option<String>,
     actions_job_id: Option<i64>,
     ci_admission_rejected: bool,
+    ci_repairable: bool,
     pi_request_rejected: bool,
     metrics_body: Option<String>,
     readiness_input: Option<ReadinessInput>,
@@ -554,6 +555,21 @@ fn admits_ci_mutation(world: &mut World) {
 #[then("the CI mutation is rejected without explicit approval")]
 fn ci_mutation_is_rejected_without_approval(world: &mut World) {
     assert!(world.ci_admission_rejected);
+}
+
+#[given("a cancelled GitHub Actions check")]
+fn cancelled_actions_check(world: &mut World) {
+    world.ci_repairable = false;
+}
+
+#[when("PiTools classifies the check conclusion for repair")]
+fn classifies_check_conclusion_for_repair(world: &mut World) {
+    world.ci_repairable = pitools::ci::is_repairable_check_conclusion("cancelled");
+}
+
+#[then("the CI repair path accepts the check conclusion")]
+fn ci_repair_path_accepts_check_conclusion(world: &mut World) {
+    assert!(world.ci_repairable);
 }
 
 #[given("a Pi worker request with a non-canonical snapshot path")]

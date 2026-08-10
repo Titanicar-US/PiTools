@@ -21,6 +21,14 @@ pub const MAX_COMMAND_OUTPUT_BYTES: usize = 256 * 1024;
 pub const MAX_CI_PATCH_BYTES: usize = 128 * 1024;
 pub const MAX_CI_PATCHES: usize = 32;
 
+/// Return whether a GitHub check conclusion should trigger CI repair diagnosis.
+pub fn is_repairable_check_conclusion(conclusion: &str) -> bool {
+    matches!(
+        conclusion,
+        "action_required" | "cancelled" | "failure" | "startup_failure" | "stale" | "timed_out"
+    )
+}
+
 /// Redact common credential-shaped values before CI evidence crosses into Pi.
 pub fn redact_ci_text(value: &str) -> String {
     let mut redacted = value.to_owned();
