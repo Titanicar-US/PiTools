@@ -17,7 +17,8 @@ use pitools::{
     pi::PiJobRequest,
     policy::Policy,
     pr_controls::{
-        ControlAction, ControlRequest, ItemStatus, PlanItem, RunState, RunStatus, apply_control,
+        ControlAction, ControlRequest, FinalSummary, ItemStatus, PlanItem, RunState, RunStatus,
+        WorkPlanComment, apply_control,
     },
     readiness::evaluate,
     webhook::verify_signature,
@@ -51,6 +52,72 @@ struct World {
     readiness_input: Option<ReadinessInput>,
     readiness_policy: Option<Policy>,
     readiness_snapshot: Option<ReadinessSnapshot>,
+    notification_body: Option<String>,
+}
+
+#[given("a PiTools work plan is about to start")]
+fn work_plan_is_about_to_start(world: &mut World) {
+    world.notification_body = Some(
+        WorkPlanComment::new(
+            "https://github.com/acme/widgets/check-runs/42",
+            vec![
+                PlanItem::new(
+                    "ci-repair",
+                    "Diagnose GitHub Actions failure",
+                    ItemStatus::InProgress,
+                )
+                .expect("work item"),
+            ],
+        )
+        .expect("work-plan comment")
+        .render()
+        .expect("render work-plan comment"),
+    );
+}
+
+#[when("PiTools renders the work-plan comment")]
+fn renders_work_plan_comment(_world: &mut World) {}
+
+#[then("the work-plan comment names the planned work and links to its Check Run controls")]
+fn work_plan_comment_exposes_plan_and_controls(world: &mut World) {
+    let body = world
+        .notification_body
+        .as_deref()
+        .expect("notification body");
+    assert!(body.contains("Diagnose GitHub Actions failure"));
+    assert!(body.contains("[Open Check Run](https://github.com/acme/widgets/check-runs/42)"));
+    assert!(body.contains("approve planned work"));
+    assert!(body.contains("skip the current item"));
+    assert!(body.contains("cancel the run"));
+}
+
+#[given("a PiTools run has completed with changes and validation")]
+fn completed_run_with_changes_and_validation(world: &mut World) {
+    world.notification_body = Some(
+        FinalSummary::new(
+            "run-42",
+            ["Repaired the failed CI command"],
+            ["make check passed"],
+            ["Human merge remains required"],
+        )
+        .expect("final summary")
+        .render()
+        .expect("render final summary"),
+    );
+}
+
+#[when("PiTools renders the final summary comment")]
+fn renders_final_summary_comment(_world: &mut World) {}
+
+#[then("the final summary lists changes, validation, and remaining blockers")]
+fn final_summary_lists_outcome_sections(world: &mut World) {
+    let body = world
+        .notification_body
+        .as_deref()
+        .expect("notification body");
+    assert!(body.contains("## Changes\n\n- Repaired the failed CI command"));
+    assert!(body.contains("## Tests\n\n- make check passed"));
+    assert!(body.contains("## Remaining blockers\n\n- Human merge remains required"));
 }
 
 fn ready_readiness_input() -> ReadinessInput {
