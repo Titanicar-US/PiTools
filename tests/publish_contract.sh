@@ -7,6 +7,10 @@ image_workflow="${repo_root}/.github/workflows/build-image.yml"
 temporary_root="$(mktemp -d)"
 trap 'rm -rf "${temporary_root}"' EXIT
 
+if ! grep -Fq -- '  pull_request:' "${image_workflow}"; then
+  echo "image validation must run on pull requests" >&2
+  exit 1
+fi
 if ! grep -Fq -- "    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')" "${image_workflow}"; then
   echo "image publication must run only for v-prefixed tags" >&2
   exit 1

@@ -44,7 +44,7 @@ The default diagnosis-only runtime requires no model credential. Enabling the Pi
 
 ## Image publication
 
-The release workflow validates source, the Helm render, and independent core and runner image builds before registry login and publication. It publishes `pitools` and `pitools-runner` for Linux amd64 and arm64 with BuildKit provenance and SBOM attestations. Consume the registry-reported image digest, not the mutable tag.
+The image workflow validates source, the Helm render, and independent core and runner image builds on pull requests before any registry login or publication. A release tag additionally publishes `pitools` and `pitools-runner` for Linux amd64 and arm64 with BuildKit provenance and SBOM attestations. Consume the registry-reported image digest, not the mutable tag.
 
 ## Helm rendering
 
