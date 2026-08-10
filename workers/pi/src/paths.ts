@@ -1,31 +1,7 @@
-import { posix, win32 } from "node:path";
-
-function assertCanonicalRepositoryPath(candidate: string): void {
-  const segments = candidate.split("/");
-  const isInvalid =
-    candidate.length === 0 ||
-    candidate.includes("\0") ||
-    candidate.includes("\\") ||
-    posix.isAbsolute(candidate) ||
-    win32.isAbsolute(candidate) ||
-    posix.normalize(candidate) !== candidate ||
-    segments.some((segment) => segment.length === 0 || segment === "." || segment === "..");
-
-  if (isInvalid) {
-    throw new Error(`PiTools path is not a canonical repository-relative path: ${candidate}`);
-  }
-}
-
-export function assertAllowedPaths(proposedPaths: readonly string[], allowedPaths: readonly string[]): void {
-  for (const allowedPath of allowedPaths) {
-    assertCanonicalRepositoryPath(allowedPath);
-  }
-
-  const allowlist = new Set(allowedPaths);
-  for (const proposedPath of proposedPaths) {
-    assertCanonicalRepositoryPath(proposedPath);
+import { posix, win32 } d›ÛH››ÙNœ]Â‚™^Ü[˜İ[Ûˆ\ÜÙ\D6æöæ–6Å&W÷6—F÷'•F‚†6æF–FFS¢7G&–ær“¢fö–B°¢6öÍĞÍ•µ•´s = candidate,Ü]
+‹ÈŠNÂˆÛÛœİ\Ò[fÆ–BĞ¢6æF–FFRæÆVåÑ €ôôô€Àñğ(€€€…¹‘¥‘…Ñ”¹¥¹±Õ‘•Ì ‰pÀˆ¤ñğ(€€€…¹‘¥‘…Ñ”¹¥¹±Õ‘•Ì ‰qpˆ¤ñğ(€€€Á½Í¥à¹¥Í‰Í½±ÕÑ”¡…¹‘¥‘…Ñ”¤ñğ(€€€İ¥¸ÌÈ¹¥Í‰Í½±ÕÑ”¡…¹‘¥‘…Ñ”¤ñğ(€€€Á½Í¥à¹¹½Éµ…±¥é”¡…¹‘¥‘…Ñ”¤€„ôô…¹‘¥‘…Ñ”ñğ(€€€Í•ments.some((se[Y[
+HOˆÙVÖVçBæÆVåÑ €ôôô€ÀñğÍ•ment === "." || segmemOOH‹‹ˆŠNÂ‚ˆYˆ
+\Ò[fÆ–B’°¢F‡&÷ræWrW'&÷"†•FööÇ2F‚—2æ÷B6æöæ–6Â&W÷6—F÷'’×&VÆF—fRFƒ¢G¶6æF–FFWÖ“°¢Ğ´()•áÁ½ÉĞ™Õ¹Ñ¥½¸…ÍÍ•ÄAllowedPaths(proposedPaths: readonly strinV×K[İÙY]Îˆ™XYÛ›Hİš[•µÒ“¢fö–B°¢f÷"†6öÍĞ…±±½İ•‘A…Ñ ½˜…±±½İ•‘A…Ñ¡Ì¤ì(€€€…ÍÍ•ÉÑ…¹½¹¥…±I•Á½Í¥Ñ½ÉåA…Ñ ¡…±±½İ•‘A…Ñ ¤ì(€ô((€½¹ÍĞ…±±½İ±¥ÍĞ€ô¹•ÜM•Ğ¡…±±½İ•‘A…Ñ¡Ì¤ì(€™½È€¡½¹ÍĞÁÉ½Á½Í•‘A…Ñ ½˜ÁÉ½Á½Í•‘A…Ñ¡Ì¤ì(€€€…ÍÍ•ÉÑ…¹½¹¥…±I•Á½Í¥Ñ½ÉPath(proposedPath);
     if (!allowlist.has(proposedPath)) {
-      throw new Error(`PiTools result contains a path outside the allowlist: ${proposedPath}`);
-    }
-  }
-}
+      throw new Error(`PiTools result comZ[œÈH]İ]ÚYHH[İÛ\İˆ	Ü›ÜÜÙY]X
+NÂˆBˆBŸB

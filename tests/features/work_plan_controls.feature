@@ -1,56 +1,15 @@
 Feature: pull request work-plan controls
-  PiTools exposes skip and cancel controls through a GitHub Check Run.
-
-  Scenario: the pull request author cancels a running plan
-    Given a running PiTools work plan
-    When the pull request author requests cancellation
-    Then all remaining work is cancelled
-
-  Scenario: a maintainer skips the current work item
-    Given a running PiTools work plan
-    When a configured maintainer skips the current item
-    Then the next work item is in progress
-
-  Scenario: the pull request author approves a waiting plan
-    Given a PiTools work plan waiting for approval
-    When the pull request author approves the plan
-    Then the approved plan starts its first work item
+  PiTools exposes skip and cancel controls throuZHÚ]XˆÚXÚÈ[‹‚‚ˆØÙ[˜\š[ÎˆH[™\]Y\İ]]ÜˆØ[˜Ù[ÈHVææ–ærÆà¢v—fVâ'Vææ–ær•FööÇ2v÷&²Æà¢v†VâF†RVÆÂ&WVW7BWF†÷"&WVW7G26æ6VÆÆF–öà¢F†VâÆÂ&VÖ–æ–ærv÷&²—26æ6VÆÆV@ ¢66Væ&–ó¢Ö–Ñ…¥¹•ÈÍ­¥ÁÌÑ¡”ÕÉÉ•¹Ğİ½É¬¥Ñ•´(€€€¥Ù•¸„Ånning PiTools work plan
+    When a configured maimZ[™\ˆÚÚ\ÈHİ\œ™[][Bˆ[ˆH™^ÛÜšÈ][H\È[ˆ›×&W70 ¢66Væ&–ó¢F†RVÆÂ&WVW7BWF†÷"&÷fW2v—F–äÁ±…¸(€€€¥Ù•¸„A¥Q½½±Ìİ½É¬Á±…¸İ…¥Ñ¥¹œ™½È…ÁÁÉ½Ù…°(€€€]¡•¸Ñ¡”ÁÕ±°É•ÅÕ•ÍĞ…ÕÑ¡½È…ÁÁÉ½Ù•ÌÑ¡”Á±…¸(€€€Q¡•¸Ñ¡”…ÁÁÉ½Ù•Á±…¸ÍÑ…Äs its first work item
 
   Scenario: the pull request author skips a waiting plan item
     Given a PiTools work plan waiting for approval
     When the pull request author skips the planned item
     Then the waiting plan marks the item skipped
 
-  Scenario: the pull request author cancels a waiting plan
-    Given a PiTools work plan waiting for approval
-    When the pull request author requests cancellation
-    Then all remaining work is cancelled
-
-  Scenario: bot branch history rewrites require explicit authorization
-    Given a stack branch requires a history rewrite
-    Then history rewrites are allowed only for an explicit bot-owned branch
-
-  Scenario: CI evidence is redacted before Pi receives it
-    Given a CI failure contains credential-shaped text
+  Scenario: the pull request author cancels a waitinH[‚ˆÚ]™[ˆHUÛÛÈÛÜšÈ[ˆØZ][™È›Üˆ\›İ˜[ˆÚ[ˆH[™\]Y\İ]]Üˆ™\]Y\İÈØ[˜Ù[][Û‚ˆ[ˆ[™[XZ[š[™ÈÛÜšÈ\ÈØ[˜Ù[Y‚ˆØÙ[˜\š[Îˆ›İœ˜[˜Ú\İÜH™]Üš]\È™\]Z\™H^XÚ]]]Üš^˜][Û‚ˆÚ]™[ˆHİXÚÈ&æ6‚&WV—&W2†—7F÷'’&Ww&—FP¢F†Vâ†—7F÷$É•İÉ¥Ñ•Ì…É”…±±½İ•½¹±ä™½È…¸•áÁ±¥¥Ğ‰½Ğµ½İ¹•‰É…¹ ((€M•¹…É¥¼è$•Ù¥‘•¹”¥ÌÉ•‘…Ñ•‰•™½É”A¤É••¥Ù•Ì¥Ğ(€€€¥Ù•¸„$™…¥±ÕÉ”½¹Ñ…¥³ credential-shaped text
     When PiTools prepares CI evidence
     Then the CI evidence contains no credential-shaped text
 
   Scenario: Actions logs and annotations are retained in bounded diagnosis evidence
-    Given a failed GitHub Actions check has logs and annotations
-    When PiTools prepares the Actions diagnosis envelope
-    Then the bounded evidence retains the Actions log and annotation
-
-  Scenario: Actions logs use the workflow job ID from check-run details
-    Given an Actions check run details URL
-    When PiTools resolves the workflow job ID for Actions logs
-    Then it resolves the workflow job ID without using the check run ID
-
-  Scenario: typed CI patches cannot bypass explicit approval
-    Given a typed CI repair patch is proposed without approval
-    When PiTools admits the CI mutation
-    Then the CI mutation is rejected without explicit approval
-
-  Scenario: operator metrics expose low-cardinality webhook counters
-    Given PiTools has received a webhook
-    When the operator reads Prometheus metrics
-    Then the received webhook counter is exposed
+    Given a failed GitHub ActiolÈÚXÚÈ\ÈÙÜÈ[™[››İ][ÛœÂˆÚ[ˆUÛÛÈ™\\™\ÈHXİ[Û2F–væ÷6—2VçfVÆ÷P¢F†VâF†R&÷VæFVBWf–FVæ6R&WF–ÌÑ¡”Ñ¥½³ loH[™[››İ][Û‚‚ˆØÙ[˜\š[ÎˆXİ[ÛœÈÙÜÈ\ÙHHÛÜšÙ›İÈ›ØˆQ&öÒ6†V6²×'VâFWF–Ç0¢v—fVââ7F–öç26†V6²'VâFWF–Ç2U$À¢v†Vâ•FööÇ2&W6öÇfW2F†Rv÷&¶fÆ÷r¦ö"”Bf÷"7F–öç2Æöw0¢F†Vâ—B&W6öÇfW2F†Rv÷&¶fÆ÷r¦ö"”Bv—F†÷WBW6–äÑ¡”¡•¬ÉÕ¸%((€M•¹…É¥¼èÑåÁ•$Á…Ñ¡•Ì…¹¹½Ğ‰åÁ…ÍÌ•áÁ±¥¥Ğ…ÁÁÉ½Ù…°(€€€¥Ù•¸„ÑåÁ•$É•Á…¥ÈÁ…Ñ ¥ÌÁÉ½Á½Í•İ¥Ñ¡½ÕĞ…ÁÁÉ½Ù…°(€€€]¡•¸A¥Q½½±Ì…‘µ¥ÑÌÑ¡”$µÕÑ…Ñ¥½¸(€€€Q¡•¸Ñ¡”$µÕÑ…Ñ¥½¸¥ÌÉ•©•Ñ•İ¥Ñ¡½ÕĞ•áÁ±¥¥Ğ…ÁÁÉ½Ù…°((€M•¹…É¥¼èA¤İ½É­•ÈÉ•©•ÑÌ¹½¸µ…¹½¹¥…°Í¹…ÁÍ¡½ĞÁ…Ñ¡Ì(€€€¥Ù•¸„A¤İ½É­•ÈÉ•ÅÕ•ÍĞİ¥Ñ „¹½¸µ…¹½¹¥…°Í¹…ÁÍ¡½ĞÁ…Ñ (€€€]¡•¸A¥Q½½±ÌÙ…±¥‘…Ñ•ÌÑ¡”A¤İ½É­•ÈÉ•ÅÕ•ÍĞ(€€€Q¡•¸Ñ¡”A¤İ½É­•ÈÉ•ÅÕ•ÍĞ¥ÌÉ•©•Ñ•‰•™½É”ÁÉ½Ù¥‘•È•á•ÕÑ¥½¸((€M•¹…É¥¼è½Á•É…Ñ½Èµ•ÑÉ¥Ì•áÁ½Í”±½Üµ…É‘¥¹…±¥Ñäİ•‰¡½½¬½Õ¹Ñ•ÉÌ(€€€¥Ù•¸A¥Q½½±Ì¡…ÌÉ••¥Ù•„İ•‰¡½½¬(€€€]¡•¸Ñ¡”½Á•É…Ñ½ÈÉ•…‘ÌAÉ½µ•Ñ¡•ÕÌµ•ÑÉ¥Ì(€€€Q¡•¸Ñ¡”É••¥Ù•İ•‰¡½½¬½Õ¹Ñ•È¥Ì•áÁ½Í•

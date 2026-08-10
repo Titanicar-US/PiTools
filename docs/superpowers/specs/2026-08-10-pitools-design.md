@@ -1,62 +1,19 @@
-# PiTools Design
-
-**Status:** Approved for implementation
-
-## Goal
-
-PiTools is a public Apache-2.0 self-hosted GitHub App for GitHub.com. It keeps installed repositories' pull requests observable and moving toward human-merge readiness, while preserving deterministic control of GitHub state and isolating Pi-based reasoning behind an explicit worker contract.
-
-The initial release is delivered as a Rust control plane with a TypeScript Pi worker sidecar. The control plane is the source of truth for webhook events, watchlist state, readiness, policy, approvals, mutations, comments, and audit history.
+# PiTools Desi[‚‚ŠŠ”İ]\ÎŠŠˆ\›İ™Y›Üˆ[\[Y[][Û‚‚ˆÈÈÛØ[‚”UÛÛÈ\ÈHX›XÈ\XÚKL‹ŒÙ[‹ZÜİYÚ]Xˆ\›ÜˆÚ]X‹˜ÛÛKˆ]ÙY\È[œİ[Y™\ÜÚ]ÜšY\ÉÈ[™\]Y\İÈØ6W…‰±”…¹µ½Ù¥¹œÑ½İ…É¡Õµ…¸µµ•É”É•…‘¥¹•ÍÌ°İ¡¥±”ÁÉ•Í•ÉÙ¥¹œ‘•Ñ•Éµ¥¹¥ÍÑ¥Œ½´rol of GitHub state and isolating Pi-based reasoninH™Z[™[ˆ^XÚ]ÛÜšÙ\ˆÛÛ˜Xİ‚‚•H[š]X[™[X\ÙH\È[]™\™Y\ÈH\İÛÛ›Û[™HÚ]H\TØÜš\HÛÜšÙ\ˆÚYXØ\‹ˆHÛÛG&öÂÆæR—2F†R6÷W&6RöbGÑ ™½Èİ•‰¡½½¬•Ù•¹ÑÌ°İ…Ñ¡±¥ÍĞÍÑ…Ñ”°É•…‘¥¹•ÍÌ°Á½±¥ä°…ÁÁÉ½Ù…±Ì°µÕÑ…Ñ¥½¹Ì°½µµ•¹ÑÌ°…¹…Õ‘¥Ğ¡¥ÍÑ½É.
 
 ## User-visible behavior
 
-- An operator creates a GitHub App through the GitHub App Manifest flow, configures the App credentials and webhook secret, and installs it on selected repositories.
-- PiTools receives PR lifecycle, comment/review, check, workflow, and status events. It verifies signatures, deduplicates deliveries, records the event, and adds or removes PRs from the watchlist.
-- A periodic reconciler refreshes open PRs so missed or out-of-order webhooks do not leave the watchlist stale.
-- The API and CLI show each watched PR, its advisory readiness state, reasons, latest event, job, and audit history.
-- A failed GitHub Actions check contributes bounded check-run output, first-page annotations, and plain-text job logs to diagnosis when GitHub makes those records available; the evidence is redacted before it crosses into Pi.
-- A job that plans or makes changes creates one living PiTools status comment, updates it through its lifecycle, and appends a final immutable summary containing the plan, decisions, commits, files, checks, and unresolved items.
-- The living comment links to a PiTools Check Run. The Check Run exposes GitHub-native Skip current item and Cancel run actions. GitHub returns action clicks as `check_run.requested_action` events.
-- Skip affects only the current planned item. Cancel stops new work cooperatively and prevents further mutations. Only the PR author or a repository maintainer may use either control.
-- PiTools never merges a PR. GitHub branch protection and human approval remain authoritative.
+- An operator creates a GitHub App throuZHÚ]Xˆ\X[šY™\İ›İËÛÛ™šYİ\™\ÈH\Ü™Y[X[È[™ÙXšÛÚÈÙXÜ™][™[œİ[È]ÛˆÙ[XİY™\ÜÚ]ÜšY\Ë‚‹HUÛÛÈ™XÙZ]™\ÈˆY™XŞXÛKÛÛ[Y[Ü™]šY]ËÚXÚËÛÜšÙ›İË[™İ]\È]™[Ëˆ]™\šYšY\ÈÚVæGW&W2ÂFVGWÆ–6FW2FVÆ—fW&–W2Â&V6÷&G2F†RWfVçBÂæBFG2÷"&VÖ÷fW2'2g&öÒF†RvF6†Æ—7Bà¢ÒW&–öF–2&V6öæ6–ÆW"&VI•Í¡•Ì½Á•¸AIÌÍ¼µ¥ÍÍ•½È½ÕĞµ½˜µ½É‘•Èİ•‰¡½½­Ì‘¼¹½Ğ±•…Ù”Ñ¡”İ…Ñ¡±¥ÍĞÍÑ…±”¸(´Q¡”A$…¹1$Í¡½Ü•… İ…Ñ¡•AH°¥ÑÌ…‘Ù¥Í½ÉäÉ•…‘¥¹•ÍÌÍÑ…Ñ”°É•…Í½¹Ì°±…Ñ•ÍĞ•Ù•¹Ğ°©½ˆ°…¹…Õ‘¥Ğ¡¥ÍÑ½Éä¸(´™…¥±•¥Ñ!ÕˆÑ¥½¹Ì¡•¬½´ributes bounded check-q[ˆİ]]š\œİ\VRææ÷FF–öç2ÂæBÆ–â×FW‡B¦ö"Æöw2FòF–væ÷6—2v†Vâv—D‡V"Ö¶W2F†÷6R&V6÷&G2f–Æ&ÆS²F†RWf–FVæ6R—2&VF7FVB&Vf÷&R—B7&÷76W2–çFò’à¢Ò¦ö"F†BÆç2÷"Ö¶W26†å•ÌÉ•…Ñ•Ì½¹”±¥Ù¥¹ PiTools status commem\]\È]›İV‚—G2Æ–fV7–6ÆRÂæBVæG2f–æÂ–Ö×WF&ÆR7VÖÖ'’6öÑ…¥¹¥¹œÑ¡”Á±…¸°‘•¥Í¥½¹Ì°½µµ¥ÑÌ°™¥±•Ì°¡•­Ì°…¹Õ¹É•Í½±Ù•¥Ñ•µÌ¸(´Q¡”±¥Ù¥¹œ½µµ•¹Ğ±¥¹­ÌÑ¼„A¥Q½½±Ì¡•¬IÕ¸¸Q¡”¡•¬IÕ¸•áÁ½Í•Ì¥Ñ!Õˆµ¹…Ñ¥Ù”M­¥ÀÕÉÉ•¹Ğ¥Ñ•´…¹…¹•°Ån actiolËˆÚ]Xˆ™]\›œÈXİ[ÛˆÛXÚÜÈ\ÈÚXÚ×Ü[‹œ™\]Y\İYØXİ[Û˜]™[Ë‚‹HÚÚ\Y™™XİÈÛ›HHİ\&VĞÁ±…¹¹•¥Ñ•´¸…¹•°ÍÑ½ÁÌ¹•Üİ½É¬½½Á•É…Ñ¥Ù•±ä…¹ÁÉ•Ù•¹ÑÌ•rther mutatiolËˆÛ›HHˆ]]ÜˆÜˆH™\ÜÚ]Ü’Ö–Ñ…¥¹•Èµ…äÕÍ”•¥Ñ¡•È½¹ÑÉ½°¸(´A¥Q½½±Ì¹•Ù•Èµ•É•Ì„AH¸¥Ñ!Õˆ‰É…¹ ÁÉ½Ñ•Ñ¥½¸…¹¡Õµ…¸…ÁÁÉ½Ù…°É•µ…¥¸…ÕÑ¡½É¥Ñ…Ñ¥Ù”¸((ŒŒÉ¡¥Ñ•ÑÕÉ”((ŒŒŒIÕÍĞ½´rol plane
 
-## Architecture
+The Rust seqšXÙHİÛœÈ[™Ü™\ÜËÚ]Xˆ\]][XØ][Û‹ÙXšÛÚÈ™\šYšXØ][Û‹]™[›Ü›X[^˜][Û‹ÜİÜ™\È\œÚ\İ[˜ÙK›ØˆX\Ù\Ë™XY[™\ÜÈØ[İ[][Û‹ÛXŞH[™›Ü˜Ù[Y[BÂv—D‡V"’w&—FW2Â6öÖÖVçBö6†V6²×'Vâ&VæFW&–ærÂæBVF—B&V6÷&G2âF†R4Ä’öffW'2F†R6÷'&W7öæF–ær–ÍÑ…±±…Ñ¥½¸Ù…±¥‘…Ñ¥½¸°İ…Ñ¡±¥ÍĞ¥¹ÍÁ•Ñ¥½¸°É•½¹¥±¥…Ñ¥½¸°©½ˆ½¹ÑÉ½°°…¹‘¥…¹½ÍÑ¥Ì…ainst the configured durable operator state.
 
-### Rust control plane
-
-The Rust service owns HTTP ingress, GitHub App authentication, webhook verification, event normalization, Postgres persistence, job leases, readiness calculation, policy enforcement, GitHub API writes, comment/check-run rendering, and audit records. The CLI offers the corresponding installation validation, watchlist inspection, reconciliation, job control, and diagnostics against the configured durable operator state.
-
-Postgres is the durable source of truth for installations, repositories, pull requests, event deliveries, normalized feedback/check state, policies, jobs, controls, comments, readiness snapshots, and audit entries. NATS is used for best-effort job wakeups plus the restricted Pi request/reply transport. Job leases, retry state, cancellation, and recovery are stored in Postgres, so dev01's current non-persistent NATS deployment is sufficient.
-
-### Pi worker boundary
-
-The TypeScript sidecar uses the Pi SDK/workflow runtime for feedback reasoning and CI diagnosis. The Rust control plane collects bounded check-run output, first-page annotations, and plain-text Actions job logs, redacts the evidence, then sends a bounded, versioned request over an authenticated, network-restricted NATS request/reply subject. The sidecar returns a nonce/job-bound JSON result. It has provider credentials only inside the worker boundary, no GitHub App private key or admin token, scrubbed repository-tool environments, and provider/allowlisted egress. A deterministic wrapper validates the result schema, limits paths and output size, redacts secrets, rejects malformed or unsafe plans, and hands the result to Rust. Pi never writes to GitHub directly.
+Post\™\È\ÈH\˜X›HÛİ\˜ÙHÙˆWF‚f÷"–ç7FÆÆF–öç2Â&W÷6—F÷&–W2ÂVÆÂ&WVW7G2ÂWfVçBFVÆ—fW&–W2Âæ÷&ÖÆ—¦VBfVVF&6²ö6†V6²7FFRÂöÆ–6–W2Â¦ö'2Â6öçG&öÇ2Â6öÖÖVÑÌ°É•…‘¥¹•ÍÌÍ¹…ÁÍ¡½ÑÌ°…¹…Õ‘¥Ğ•¹ÑÉ¥•Ì¸9QL¥ÌÕÍ•™½È‰•ÍĞµ•™™½ÉĞ©½ˆİ…­•ÕÁÌÁ±ÕÌÑ¡”É•ÍÑÉ¥Ñ•A¤É•ÅÕ•ÍĞ½É•Á±äÑÉ…³port. Job leases, retry state, cancellation, and recoverH\™HİÜ™Y[ˆÜİÜ™\ËÛÈ]ŒG27W'&VçBæöâ×W'6—7FVçBäE2FWÆ÷–ÖVçB—27Vff–6–VçBà ¢222’v÷&¶W"&÷VæF' ¥F†RG—U67&—B6–FV6"W6W2F†R’4D²÷v÷&¶fÆ÷r¹Ñ¥µ”™½È™••‘‰…¬É•…Í½¹¥¹ and CI dia[›ÜÚ\ËˆH\İÛÛG&öÂÆæR6öÆÆV7G2&÷VæFVB6†V6²×'Vâ÷WGWBÂf—'7B×vRææ÷FF–öç2ÂæBÆ–â×FW‡B7F–öç2¦ö"Æöw2Â&VF7G2F†RWf–FVæ6RÂF†Vâ6VæG2&÷VæFVBÂfW¥½¹•É•ÅÕ•ÍĞ½Ù•È…¸…ÕÑ¡•¹Ñ¥…Ñ•°¹•Ñİ½É¬µÉ•ÍÑÉ¥Ñ•9QLÉ•ÅÕ•ÍĞ½É•Á±äÍÕ‰©•Ğ¸Q¡”Í¥‘•…ÈÉ•ÑÕÉ¹Ì„¹½¹”½©½ˆµ‰½Õ¹)M=8É•ÍÕ±Ğ¸%Ğ¡…ÌÁÉ½Ù¥‘•ÈÉ•‘•¹Ñ¥…±Ì½¹±ä¥³ide the worker boundary, no GitHub App private key or admin token, scrubbed repository-tool environments, and provider/allowlisted e\™\ÜËˆH]\›Z[š\İXÈÜ˜\\ˆ˜[Y]\ÈH™\İ[ØÚ[XK[Z]È]È[™İ]]Ú^™K™YXİÈÙXÜ™]Ë™Z™XİÈX[›Ü›YYÜˆ[œØY™H[œË[™[™ÈH™\İ[ÈW7Bâ’æWfW"w&—FW2Fòv—D‡V"F—&V7FÇ’à ¥F†R&WVW7B6æ6†÷BF‚æBWfW'’ÆÆ÷vVB÷"&÷÷6VBf–ÆRF‚&R6æöæ–6Â&W÷6—F÷'’×&VÆF—fRF‡2â'6öÇWFRF‡2ÂG&fW…°Í•µ•¹ÑÌ°…±Ñ•É¹…Ñ”Í•Á…É…Ñ½Ã, and other non-canonical forms are rejected at both the Rust and TypeScript worker boundaries before provider execution.
 
 ### Deployment
 
-PiTools publishes a container image and reusable Helm chart. The production profile consumes external Postgres and NATS services and is integrated into dev01's existing Flux-managed Kubernetes configuration. A local profile bundles equivalent dependencies for development and acceptance tests. Envoy Gateway or an equivalent existing TLS reverse proxy exposes the webhook route; the PiTools container remains private.
+PiTools publishes a container image and reusable Helm chaqˆH›ÙXİ[Ûˆ›Ùš[HÛÛœİ[Y\È^\›˜[ÜİÜ™\È[™UÈÙ\šXÙ\È[™\È[W&FVB–çFòFWcw2W†—7F–ä±Õàµµ…¹…•-Õ‰•É¹•Ñ•Ì½¹™¥ÕÉ…Ñ¥½¸¸±½…°ÁÉ½™¥±”‰Õ¹‘±•Ì•ÅÕ¥Ù…±•´ dependencies for development and acceptance tests. Envoy Gateway or an equivalent existinHÈ™]™\6R&÷‡’W‡÷6W2F†RvV&†öö²&÷WFS²F†R•FööÇ26öÑ…¥¹•ÈÉ•µ…¥¹ÌÁÉ¥Ù…Ñ”¸((ŒŒM•ÕÉ¥Ñä…¹…ÕÑ¡½É¥Ñä((´Q¡”¥Ñ!ÕˆÁÀÉ•ÅÕ•ÍÑÌÑ¡”™Õ±°™ÕÑÕÉ”µ™…¥¹œÁ•Éµ¥ÍÍ¥½¸Í•Ğ’om v1, a][F–ÖR7F–öç27F–ÆÂ&WV—&R&W÷6—F÷$Á½±¥ä…¹©½ˆ…ÁÁÉ½Ù…°¸(´]•‰¡½½­ÌÉ•ÅÕ¥É”`µ!ÕˆµM¥nature-256` verification and `X-GitHub-DeliverXY[\İ[˜ŞK‚‹HH\2&—fFR¶W’æBvV&†öö²6V7&WB&RæWfW"W‡÷6VBFò’Â&W÷6—F÷$½µµ…¹‘Ì°½µµ•´s, or logs.
+- RepositorHÛXŞH\È™\6–öæVB–âÁ¥Ñ½½±Ì¹åµ±€¸M•ÉÙ¥”µ±•Ù•°¥¶ariamÈØ[››İ™HÙXZÙ[™YH]š[NˆUÛÛÈØ[››İY\™ÙKØ[››İ^ÜÙXÜ™]Ë[™Ù\È›İ›Ü˜ÙK\\ÚHY˜][‚‹H\YÒH]Ú\È[Ø^\È™\]Z\™H[ˆ^XÚ]ÚXÚÈ[ˆ\›İ˜[È™\ÜÚ]Ü’öÆ–7’6ææ÷BF—6&ÆRF†—2×WFF–öâvFRÂæB’&V¦V7G2ç’F6‚&W7VÇBF†BFöW2æ÷BFV6Æ&R&÷fÂà¢ÒfVVF&6²WFöÖF–öâ—2Æ–Ö—FVBFò6öæf–wW&VBWFöÖF–öâ7F÷¸!Õµ…¸™••‘‰…¬¥ÌÉ•½É‘•…¹ÍÕÉ™…•‰ÕĞ¥Ì¹½Ğ…ÕÑ½µ…Ñ¥…±±ä¡…¹•¸(´MÕested changes are applied only after exact extraction, isolated worktree validation, configured checks, and policy approval.
+- Optional provider-backed CI/feedback repair executes in an ephemeral least-privileYYÛÜšÙ\ˆÚ]›İ[™Y™\Ûİ\˜Ù\È[™›İšY\‹Ø[İÛ\İY™]ÛÜšÈXØÙ\ÜÎÈXVæ÷6—2ÖöæÇ’ÖöFR&VÖ–ÌÑ¡”‘•™…Õ±Ğ¸(´I•Á…¥È½µµ¥ÑÌÕÍ”Ñ¡”¥Ñ!ÕˆÁÀ‰½Ğ¥‘•¹Ñ¥Ñä…¹¥¹±Õ‘”„©½ˆ½…Õ‘¥ĞÑÉ…¥±•È¸((ŒŒ•±¥Ù•É slices
 
-## Security and authority
-
-- The GitHub App requests the full future-facing permission set from v1, but runtime actions still require repository policy and job approval.
-- Webhooks require `X-Hub-Signature-256` verification and `X-GitHub-Delivery` idempotency.
-- The App's private key and webhook secret are never exposed to Pi, repository commands, comments, or logs.
-- Repository policy is versioned in `.pitools.yml`. Service-level invariants cannot be weakened by that file: PiTools cannot merge, cannot export secrets, and does not force-push by default.
-- Typed CI patches always require an explicit Check Run approval; repository policy cannot disable this mutation gate, and Pi rejects any patch result that does not declare approval.
-- Feedback automation is limited to configured automation actors. Human feedback is recorded and surfaced but is not automatically changed.
-- Suggested changes are applied only after exact extraction, isolated worktree validation, configured checks, and policy approval.
-- Optional provider-backed CI/feedback repair executes in an ephemeral least-privileged worker with bounded resources and provider/allowlisted network access; diagnosis-only mode remains the default.
-- Repair commits use the GitHub App bot identity and include a job/audit trailer.
-
-## Delivery slices
-
-1. **Watchlist foundation and control UX:** repository bootstrap, event ledger, watchlist, reconciliation, readiness, API/CLI, policy, comments, Check Run controls, audit, tests, and deployment packaging.
-2. **Deterministic feedback repair:** configured automation actor classification, review-thread state, exact suggested-change extraction, isolated worktree application, validation, comments, and resolution.
-3. **GitHub Actions repair:** failed workflow/job normalization, ephemeral repair runner, Pi diagnosis/typed result wrapper, approval flow, commit/push, and final summary.
-4. **Stack and rebase management:** explicit stack model, deterministic ordering, fast-forward/rebase planning, conflict handling, and opt-in force-push only for approved bot-owned branches.
-
-Each slice is independently testable and keeps the prior slice usable.
-
-## Acceptance boundary
-
-The first release is complete when a self-hosted operator can validate an App installation, receive and replay signed events, see all open PRs in the API/CLI, recover state through reconciliation, inspect advisory readiness reasons, and exercise the comment/Check Run job-control contract without allowing an unapproved worker to mutate GitHub. Later slices are not declared complete until their own deterministic tests, BDD scenarios, security checks, and isolated integration evidence exist.
+1. **Watchlist foundation and control UX:** repositorH›Ûİİ˜\]™[YW"ÂvF6†Æ—7BÂ&V6öæ6–Æ–F–öâÂ&VF–æW72Â’ô4Ä’ÂöÆ–7’Â6öÖÖVçG2Â6†V6²¸½´rols, audit, tests, and deployment packaging.
+2. **Deterministic feedback repair:** configured automation actor classification, review-thread state, exact suggested-change extraction, isolated worktree application, validation, commemË[™™\ÛÛ][Û‹‚ŒËˆ
+Š‘Ú]XˆXİ[ÛœÈ™\Z\ŠŠˆ˜Z[YÛÜšÙ›İËÚ›Øˆ›Ü›X[^˜][Û‹\[Y\˜[™\Z\ˆ[›™\‹HXYÛ›ÜÚ\Ëİ\Y™\İ[Ü˜\\‹\›İ˜[›İËÛÛ[Z]Ü\Ú[™š[˜[İ[[X\’à£Bâ¢¥7F6²æB&V&6RÖævVÖVçC¢¢¢W‡Æ–6—B7F6²ÖöFVÂÂFWFW&Ö–æ—7F–2÷&FW&–ä°™…ÍĞµ™½Çard/rebase planninKÛÛ™›Xİ[™[™Ë[™ÜZ[ˆ›Ü˜ÙK\\ÚÛ›H›Üˆ\›İ™Y›İ[İÛ™Yœ˜[˜Ú\Ë‚‚‘XXÚÛXÙH\È[™\[™[FÇ’FW7F&ÆRæB¶VW2F†R&–÷"6Æ–6RW6&ÆRà ¢2266WFæ6R&÷VæF$()Q¡”™¥ÉÍĞÉ•±•…Í”¥Ì½µÁ±•Ñ”İ¡•¸„Í•±˜µ¡½ÍÑ•½Á•É…Ñ½È…¸Ù…±¥‘…Ñ”…¸ÁÀ¥¹ÍÑ…±±…Ñ¥½¸°É••¥Ù”…¹É•Á±…äÍ¥¹••Ù•¹ÑÌ°Í•”…±°½Á•¸AC in the API/CLI, recover state throuZ™XÛÛ˜Ú[X][Û‹[œÜXİYš\ÛÜH™XY[™\ÜÈ™X\ÛÛœË[™^\˜Ú\ÙHHÛÛ[Y[ĞÚXÚÈ[ˆ›Ø‹XÛÛ›ÛÛÛ˜XİÚ]İ][İÚ[’âVæ&÷fVBv÷&¶W"Fò×WFFRv—D‡V"âÆFW"6Æ–6W2&Ræ÷BFV6Æ&VB6ö×ÆWFRVçF–ÂF†V—"÷vâFWFW&Ö–æ—7F–2FW7G2Â$DB66Væ&–÷2Â6V7W&—G’6†V6·2ÂæB—6öÆFVB–Ñ•É…Ñ¥½¸•Ù¥‘•¹”•á¥ÍĞ¸
