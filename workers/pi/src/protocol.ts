@@ -1,24 +1,111 @@
 import {
-  ap˜^Kˆ›ÛÛX[‹ˆš[š]Kˆ\H[™™\“İ]]ˆ]\˜[ˆX^[™İˆX^˜[YKˆZ[“[™İˆZ[•˜[YKˆ[X™\‹ˆÜ[Û˜[ˆ\Kˆ™XÛÜ™ˆØY™T\6RÀ¢7G&–7Dö&¦V7BÀ¢7G&–ærÀ¢Væ¶æ÷vâÀ§Òg&öÒ'fÆ–&÷B#° ¦–×÷'B²76W'DÆÆ÷vVEF‡2Â76W'D6æöæ–6Å&W÷6—F÷'•F‚Òg&öÒ"â÷F‡2æ§2#°¦–×÷'B²&VF7E6V7&WG2Òg&öÒ"â÷&VF7F–öâæ§2#° ¦W‡÷'B6öç7B$õDô4ôÅõdU%4”ôâÒ¥Ñ½½±Ì¹Á¤½ØÄˆ…Ì½³t;
-expoqÛÛœİQUSÓPVÓÕUUĞ–UTÈH
-ˆLÂ‚˜ÛÛœİ›Û‘[\Tİš[™ÈH\Jİš[™Ê
-KZ[“[—F‚ƒ’“°¦6öç7BF6…F‚Ò—R‡7G&–ær‚’ÂÖ–äÆVåÑ  Ä¤°µ…á1•¹Ñ  ÄÀÈĞ¤¤ì)½³t unifiedDiff = pipe(string(), minLength(1), maxLen]
-L
-ˆL
-JNÂ‚˜ÛÛœİT]ÚØÚ[XHHİšXİØš™Xİ
-Âˆ]ˆ]Ú]ˆ[šYšYYY™‹ŸJNÂ‚™^ÜÛÛœİR›Ø”™\]Y\İØÚ[XHHİšXİØš™Xİ
-Âˆ›İØÛÛ™\œÚ[Ûˆ]\˜[
-“ÕĞÓÓÕ‘T”ÒSÓŠKˆ›Ø’Yˆ›Û‘[\Tİš[™Ëˆ™\ÜÚ]ÜNˆ›Û‘[\Tİš[™ËˆÛ˜\Úİ]ˆ›Û‘[\Tİš[™Ëˆ[İÙY]Îˆ\œ˜^J›Û‘[\Tİš[’’À¢f–ÇW&TWf–FVæ6S¢÷F–öæÂ‡7G&–ær‚’’À¢öÆ–7•&Wf—6–öã¢æöäV×G•7G&–ærÀ¢æöæ6S¢æöäV×G•7G&–ä°)ô¤ì()•áÁ½ÉĞ½¹ÍĞÁ¥)½‰I•ÍÕ±ÑM¡•µ„€ôÍÑÉ¥Ñ=‰©•Ğ¡ì(€ÁÉ½Ñ½½±Y•ÉÍ¥½¸è±¥Ñ•É…°¡AI=Q==1}YIM%=8¤°(€©½‰%è¹½¹µÁÑåMÑÉ¥¹œ°(€¹½¹”è¹½¹µÁÑåMÑÉ¥¹œ°(€‘¥…¹½Í¥ÌèÍÑÉ¥¹œ ¤°(€½¹™¥‘•¹”èÁ¥Á”¡¹Õµ‰•È ¤°™¥¹¥Ñ” ¤°µ¥¹Y…±Õ” À¤°µ…áY…±Õ” Ä¤¤°(€ÁÉ½Á½Í•‘¥±•Ìè…Âay(nonEmptyString),
-  proposedPatches: optional(ap˜^JT]ÚØÚ[XJJKˆ˜[Y][ÛÛÛ[X[™Îˆ\&’†æöäV×G•7G&–ær’À¢&—6·3¢'&’‡7G&–ær‚’’À¢&WV—&W4&÷fÃ¢&ööÆVâ‚’À¢ÖWFFF¢÷F–öæÂ‡&V6÷&B‡7G&–ær‚’ÂVæ¶æ÷vâ‚’’’À´¤ì()•áÁ½ÉĞÑåÁ”A¥)½‰I•ÅÕ•ÍĞ€ô%¹™•É=ÕÑÁÕĞñÑåÁ•½˜Á¥)½‰I•ÅÕ•ÍÑM¡•µ„øì)•áÁ½ÉĞÑåÁ”A¥)½‰I•ÍÕ±Ğ€ô%¹™•É=ÕÑÁÕĞñÑåÁ•½˜Á¥)½‰I•ÍÕ±ÑM¡•µ„øì()•áÁ½ÉĞÑåÁ”AÉ½Ñ½½±1¥µ¥ÑÌ€ôì(€µ…á=ÕÑÁÕÑ	åÑ•Ìüèµmber;
+  array,
+  boolean,
+  finite,
+  type InferOutput,
+  literal,
+  maxLength,
+  maxValue,
+  minLength,
+  minValue,
+  number,
+  optional,
+  pipe,
+  record,
+  safeParse,
+  strictObject,
+  string,
+  unknown,
+} from "valibot";
+
+import { assertAllowedPaths, assertCanonicalRepositoryPath } from "./paths.js";
+import { redactSecrets } from "./redaction.js";
+
+export const PROTOCOL_VERSION = "pitools.pi/v1" as const;
+export const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024;
+
+const nonEmptyString = pipe(string(), minLength(1));
+const patchPath = pipe(string(), minLength(1), maxLength(1024));
+const unifiedDiff = pipe(string(), minLength(1), maxLength(128 * 1024));
+
+const piPatchSchema = strictObject({
+  path: patchPath,
+  unifiedDiff,
+});
+
+export const piJobRequestSchema = strictObject({
+  protocolVersion: literal(PROTOCOL_VERSION),
+  jobId: nonEmptyString,
+  repository: nonEmptyString,
+  snapshotPath: nonEmptyString,
+  allowedPaths: array(nonEmptyString),
+  failureEvidence: optional(string()),
+  policyRevision: nonEmptyString,
+  nonce: nonEmptyString,
+});
+
+export const piJobResultSchema = strictObject({
+  protocolVersion: literal(PROTOCOL_VERSION),
+  jobId: nonEmptyString,
+  nonce: nonEmptyString,
+  diagnosis: string(),
+  confidence: pipe(number(), finite(), minValue(0), maxValue(1)),
+  proposedFiles: array(nonEmptyString),
+  proposedPatches: optional(array(piPatchSchema)),
+  validationCommands: array(nonEmptyString),
+  risks: array(string()),
+  requiresApproval: boolean(),
+  metadata: optional(record(string(), unknown())),
+});
+
+export type PiJobRequest = InferOutput<typeof piJobRequestSchema>;
+export type PiJobResult = InferOutput<typeof piJobResultSchema>;
+
+export type ProtocolLimits = {
+  maxOutputBytes?: number;
 };
 
-e[˜İ[Ûˆ\œÙT™\]Y\İ
-˜[YNˆ[šÛ›İÛŠNˆR›Ø”™\]Y\İÂˆÛÛœİ\œÙYHØY™T\œÙJR›Ø”™\]Y\İØÚ[XK˜[YJNÂˆYˆ
-\\œÙYœİXØÙ\ÜÊHÂˆ›İÈ™]È\œ›ÜŠš[fÆ–B•FööÇ2&WVW7B"“°¢Ğ¢&WGW&â'6VBæ÷WGWC°§Ğ ¦U¹Ñ¥½¸Á…ÉÍ•I•ÍÕ±Ğ¡Ù…±Õ”èÕ¹­¹½İ¸¤èA¥)½‰I•ÍÕ±Ğì(€½¹ÍĞÁ…ÉÍ•€ôÍ…™•A…Ãe(piJobResultSchema, value);
+function parseRequest(value: unknown): PiJobRequest {
+  const parsed = safeParse(piJobRequestSchema, value);
   if (!parsed.success) {
-    throw new Error("im˜[YUÛÛÈ™\İ[ŠNÂˆBˆ™]\›ˆ\œÙY›İ]]ÂŸB‚™[˜İ[Ûˆ\ÜÙ\D÷WGWE6—¦R‡fÇVS¢Væ¶æ÷vâÂÖ„÷WGWD'—FW3¢Õµ‰•È¤èÙ½¥ì(€¥˜€ …9Õµ‰•È¹¥ÍM…™•%¹Ñ••È¡µ…á=ÕÑÁÕÑ	åÑ•Ì¤ñğµ…á=ÕÑÁÕÑ	tes < 1) {
-    throw new Error("PiTools output limit must be a positive safe inteY\ˆŠNÂˆB‚ˆ]Ù\šX[^™Yˆİš[™ÎÂˆHÂˆÛÛ7B÷WGWBÒ¥4ôâç7G&–å¥™ä¡Ù…±Õ”¤ì(€€€¥˜€¡½ÕÑÁÕĞ€ôôôÕ¹‘•™¥¹•¤ì(€€€€€Ñ¡É½Ü¹•ÜQåÁ•ÉÉ½È ‰Ù…±Õ”¥Ì¹½Ğ)M=8Í•É¥…±¥é…‰±”ˆ¤ì(€€€ô(€€€Í•É¥…±¥é•€ô½ÕÑÁÕĞì(€ô…Ñ ì(€€€Ñ¡É½Ü¹•ÜÉÉ½È ‰A¥Q½½±ÌÉ•ÍÕ±Ğ¥Ì¹½Ğ)M=8Í•É¥…±¥é…‰±”ˆ¤ì(€ô((€¥˜€¡	Õ™™•È¹‰åÑ•1•¹Ñ ¡Í•É¥…±¥é•°€‰ÕÑ˜àˆ¤€øµ…á=ÕÑÁÕÑ	åÑ•Ì¤ì(€€€Ñ¡É½Ü¹•ÜÉÉ½È¡A¥Q½½±ÌÉ•ÍÕ±Ğ•á••‘ÌÑ¡”€‘íµ…á=ÕÑÁÕÑ	åÑ•Íô‰åÑ”±¥µ¥Ñ€¤ì(€ô)ô()•áÁ½Ä e[˜İ[Ûˆ˜[Y]T›İØÛÛ™\]Y\İ
-˜[YNˆ[šÛ›İÛŠNˆR›Ø”™\]Y\İÂˆÛÛ7B&WVW7BÒ'6U&WVW7B‡fÇVR“°¢76W'D6æöæ–6Å&W÷6—F÷%A…Ñ ¡É•ÅÕ•ÍĞ¹Í¹…ÁÍ¡½ÑA…Ñ ¤ì(€…ÍÍ•ÄAllowedPaths([], request.allowedPaths);
+    throw new Error("invalid PiTools request");
+  }
+  return parsed.output;
+}
+
+function parseResult(value: unknown): PiJobResult {
+  const parsed = safeParse(piJobResultSchema, value);
+  if (!parsed.success) {
+    throw new Error("invalid PiTools result");
+  }
+  return parsed.output;
+}
+
+function assertOutputSize(value: unknown, maxOutputBytes: number): void {
+  if (!Number.isSafeInteger(maxOutputBytes) || maxOutputBytes < 1) {
+    throw new Error("PiTools output limit must be a positive safe integer");
+  }
+
+  let serialized: string;
+  try {
+    const output = JSON.stringify(value);
+    if (output === undefined) {
+      throw new TypeError("value is not JSON serializable");
+    }
+    serialized = output;
+  } catch {
+    throw new Error("PiTools result is not JSON serializable");
+  }
+
+  if (Buffer.byteLength(serialized, "utf8") > maxOutputBytes) {
+    throw new Error(`PiTools result exceeds the ${maxOutputBytes} byte limit`);
+  }
+}
+
+export function validateProtocolRequest(value: unknown): PiJobRequest {
+  const request = parseRequest(value);
+  assertCanonicalRepositoryPath(request.snapshotPath);
+  assertAllowedPaths([], request.allowedPaths);
   return request;
 }
 
@@ -27,10 +114,27 @@ export function validateProtocolResult(
   request: PiJobRequest,
   limits: ProtocolLimits = {},
 ): PiJobResult {
-  colİX^İ]]]\ÈH[Z]Ë›X^İ]]]\ÈÏÈQUSÓPVÓÕUUĞ–UTÎÂˆ\ÜÙ\D÷WGWE6—¦R‡fÇVRÂÖ„÷WGWD'—FW2“° ¢6öÍĞÉ•ÍÕ±Ğ€ôÁ…ÃeResult(value);
+  const maxOutputBytes = limits.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
+  assertOutputSize(value, maxOutputBytes);
+
+  const result = parseResult(value);
   if (
-    result.protocolVersion !== request,›İØÛÛ™\œÚ[Ûˆˆ™\İ[š›Ø’YOOH™\]Y\İš›Ø’Yˆ™\İ[››Û˜ÙHOOH™\]Y\İ››Û˜ÙBˆ
-HÂˆ›İÈ™]È\&÷"‚%•FööÇ2&W7VÇB—2æ÷B&÷VæBFòF†R&WVW7B"“°¢Ğ¢–b‡&W7VÇBç&÷÷6VEF6†W2bb&W7VÇBç&÷÷6VEF6†W2æÆVæwF‚âbb&W7VÇBÉ•ÅÕ¥É•ÍÁÁÉ½Ù…°¤ì(€€€Ñ¡É½Ü¹•ÜÂor("PiTools typed patches must require explicit approval");
+    result.protocolVersion !== request.protocolVersion ||
+    result.jobId !== request.jobId ||
+    result.nonce !== request.nonce
+  ) {
+    throw new Error("PiTools result is not bound to the request");
   }
-  asseq[İÙY]Ê™\İ[&÷÷6VDf–ÆW2Â&WVW7BæÆÆ÷vVEF‡2“°¢76W±±½İ•‘A…Ñ¡Ì (€€€É•ÍÕ±Ğ¹ÁÉ½Á½Í•‘A…Ñ¡•Ìü¹µ…À ¡Á…Ñ ¤€ôøÁ…Ñ ¹Á…Ñ ¤€üümt°(€€€É•ÅÕ•ÍĞ¹…±±½İ•‘A…Ñ¡Ì°(€€¤ì((€½³t redacted = parseResult(redactSecrets(result));
-  asseqİ]]Ú^™J™YXİYX^İ]]]\ÊNÂˆ™]\›ˆ™YXİYÂŸB
+  if (result.proposedPatches && result.proposedPatches.length > 0 && !result.requiresApproval) {
+    throw new Error("PiTools typed patches must require explicit approval");
+  }
+  assertAllowedPaths(result.proposedFiles, request.allowedPaths);
+  assertAllowedPaths(
+    result.proposedPatches?.map((patch) => patch.path) ?? [],
+    request.allowedPaths,
+  );
+
+  const redacted = parseResult(redactSecrets(result));
+  assertOutputSize(redacted, maxOutputBytes);
+  return redacted;
+}

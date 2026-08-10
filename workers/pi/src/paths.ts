@@ -1,7 +1,31 @@
-import { posix, win32 } d›ÛH››ÙNœ]ŽÂ‚™^Ü[˜Ý[Ûˆ\ÜÙ\D6æöæ–6Å&W÷6—F÷'•F‚†6æF–FFS¢7G&–ær“¢fö–B°¢6öÍÐÍ•µ•´s = candidate,Ü]
-‹ÈŠNÂˆÛÛœÝ\Ò[fÆ–BÐ¢6æF–FFRæÆVåÑ €ôôô€Àñð(€€€…¹‘¥‘…Ñ”¹¥¹±Õ‘•Ì ‰pÀˆ¤ñð(€€€…¹‘¥‘…Ñ”¹¥¹±Õ‘•Ì ‰qpˆ¤ñð(€€€Á½Í¥à¹¥Í‰Í½±ÕÑ”¡…¹‘¥‘…Ñ”¤ñð(€€€Ý¥¸ÌÈ¹¥Í‰Í½±ÕÑ”¡…¹‘¥‘…Ñ”¤ñð(€€€Á½Í¥à¹¹½Éµ…±¥é”¡…¹‘¥‘…Ñ”¤€„ôô…¹‘¥‘…Ñ”ñð(€€€Í•ments.some((se[Y[
-HOˆÙVÖVçBæÆVåÑ €ôôô€ÀñðÍ•ment === "." || segmemOOH‹‹ˆŠNÂ‚ˆYˆ
-\Ò[fÆ–B’°¢F‡&÷ræWrW'&÷"†•FööÇ2F‚—2æ÷B6æöæ–6Â&W÷6—F÷'’×&VÆF—fRFƒ¢G¶6æF–FFWÖ“°¢Ð´()•áÁ½ÉÐ™Õ¹Ñ¥½¸…ÍÍ•ÄAllowedPaths(proposedPaths: readonly strinV×K[ÝÙY]Îˆ™XYÛ›HÝš[•µÒ“¢fö–B°¢f÷"†6öÍÐ…±±½Ý•‘A…Ñ ½˜…±±½Ý•‘A…Ñ¡Ì¤ì(€€€…ÍÍ•ÉÑ…¹½¹¥…±I•Á½Í¥Ñ½ÉåA…Ñ ¡…±±½Ý•‘A…Ñ ¤ì(€ô((€½¹ÍÐ…±±½Ý±¥ÍÐ€ô¹•ÜM•Ð¡…±±½Ý•‘A…Ñ¡Ì¤ì(€™½È€¡½¹ÍÐÁÉ½Á½Í•‘A…Ñ ½˜ÁÉ½Á½Í•‘A…Ñ¡Ì¤ì(€€€…ÍÍ•ÉÑ…¹½¹¥…±I•Á½Í¥Ñ½ÉPath(proposedPath);
+import { posix, win32 } from "node:path";
+
+export function assertCanonicalRepositoryPath(candidate: string): void {
+  const segments = candidate.split("/");
+  const isInvalid =
+    candidate.length === 0 ||
+    candidate.includes("\0") ||
+    candidate.includes("\\") ||
+    posix.isAbsolute(candidate) ||
+    win32.isAbsolute(candidate) ||
+    posix.normalize(candidate) !== candidate ||
+    segments.some((segment) => segment.length === 0 || segment === "." || segment === "..");
+
+  if (isInvalid) {
+    throw new Error(`PiTools path is not a canonical repository-relative path: ${candidate}`);
+  }
+}
+
+export function assertAllowedPaths(proposedPaths: readonly string[], allowedPaths: readonly string[]): void {
+  for (const allowedPath of allowedPaths) {
+    assertCanonicalRepositoryPath(allowedPath);
+  }
+
+  const allowlist = new Set(allowedPaths);
+  for (const proposedPath of proposedPaths) {
+    assertCanonicalRepositoryPath(proposedPath);
     if (!allowlist.has(proposedPath)) {
-      throw new Error(`PiTools result comZ[œÈH]Ý]ÚYHH[ÝÛ\Ýˆ	Ü›ÜÜÙY]X
-NÂˆBˆBŸB
+      throw new Error(`PiTools result contains a path outside the allowlist: ${proposedPath}`);
+    }
+  }
+}

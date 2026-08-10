@@ -1,14 +1,55 @@
-import test d›ÛH››ÙN\ÝŽÂš[\Ü\ÜÙ\œ›ÛH››ÙN˜\ÜÙ\ÜÝšXÝŽÂ‚š[\ÜÈ“ÕÐÓÓÕ‘T”ÒSÓ‹˜[Y]T›ÝØÛÛ™\Ý[Hœ›ÛH‹‹‹ÜÜ˜ËÜ›ÝØÛÛšœÈŽÂš[\ÜÈ™YXÝÙXÜ™]ÈHœ›ÛH‹‹‹ÜÜ˜ËÜ™YXÝ[Û‹šœÈŽÂ‚FW7B‚	•‘…ÑÌÍ•É•Ðµ±¥­”½ÕÑÁÕÐ‰•™½É”¥ÐÉ½ÍÍ•ÌÑ¡”Ý½É­•È‰½Õ¹‘…É", () => {
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import { PROTOCOL_VERSION, validateProtocolResult } from "../src/protocol.js";
+import { redactSecrets } from "../src/redaction.js";
+
+test("redacts secret-like output before it crosses the worker boundary", () => {
   const request = {
     protocolVersion: PROTOCOL_VERSION,
     jobId: "job-1",
     repository: "example/repo",
     snapshotPath: "snapshot.json",
     allowedPaths: [],
-    policyRevision:  ÚLMŽœÛXÞH‹ˆ›Û˜ÙNˆ››Û˜ÙKLH‹ˆNÂ‚ˆÛÛœÝ™\Ý[H˜[Y]T›ÝØÛÛ™\Ý[
-ˆÂˆ›ÝØÛÛ™\œÚ[ÛŽˆ“ÕÐÓÓÕ‘T”ÒSÓ‹ˆ›Ø’Yˆš›Ø‹LH‹ˆ›Û˜ÙNˆ››Û˜ÙKLH‹ˆXYÛ›ÜÚ\ÎˆFö¶Vâv‡ó#3CScsƒ“ÆV¶VC²¶W’6²Ö&6FVfv†–¦¶ÆÖæ÷"À¢6öæf–FVæ6S¢ãÀ¢&÷÷6VDf–ÆW3¢µÒÀ¢fÆ–FF–öä6öÖÖæG3¢µÒÀ¢&—6·3¢²$WF†÷&—¦F–öã¢&V&W"&2æFVbÓ#2%ÒÀ¢&WV—&W4&÷fÃ¢G'VRÀ¢ÒÀ¢&WVW7BÀ¢“° ¢76W'BæWVÂ‡&W7VÇBæF–væ÷6—2Â'Fö¶Vâµ$TD5DTEÒÆV¶VC²¶W’µ$TD5DTEÒ"“°¢76W'BæFVWWVÂ‡&W7VÇBç&—6·2Â²$WF†÷&—¦F–öã¢µ$TD5DTEÒ%Ò“°§Ò“° §FW7B‚'&V7W¥Ù•±äÉ•‘…ÑÌÍ•³itive metadata keys and nested values", () => {
-  colÝ™YXÝYH™YXÝÙXÜ™]ÊÂˆ\RÙ^NˆœZ[‹\ÙXÜ™]]˜[YH‹ˆ™\ÝYˆÞÈÝ]]ˆ–—F‡V%÷Eö&6FVfv†–¦¶ÆÖæ÷ÑÕÙÝáåèˆõt°(€€€Í…™”è€‰Ù¥Í¥‰±”ˆ°(€ô¤ì((€…ÍÍ•ÉÐ¹‘••ÁÅÕ…°¡É•‘…Ñ•°ì(€€€…Á¥-•äè€‰mIQtˆ°(€€€¹•ÍÑ•èmì½ÕÑÁÕÐè€‰mIQtˆõt°(€€€Í…™”è€†isible",
+    policyRevision: "sha256:policy",
+    nonce: "nonce-1",
+  };
+
+  const result = validateProtocolResult(
+    {
+        protocolVersion: PROTOCOL_VERSION,
+        jobId: "job-1",
+        nonce: "nonce-1",
+        diagnosis: "token ghp_1234567890 leaked; key sk-abcdefghijklmnop",
+        confidence: 0.1,
+        proposedFiles: [],
+        validationCommands: [],
+        risks: ["Authorization: Bearer abc.def-123"],
+        requiresApproval: true,
+      },
+    request,
+  );
+
+  assert.equal(result.diagnosis, "token [REDACTED] leaked; key [REDACTED]");
+  assert.deepEqual(result.risks, ["Authorization: [REDACTED]"]);
+});
+
+test("recursively redacts sensitive metadata keys and nested values", () => {
+  const redacted = redactSecrets({
+    apiKey: "plain-secret-value",
+    nested: [{ output: "github_pat_abcdefghijklmnopqrstuvwxyz" }],
+    safe: "visible",
+  });
+
+  assert.deepEqual(redacted, {
+    apiKey: "[REDACTED]",
+    nested: [{ output: "[REDACTED]" }],
+    safe: "visible",
   });
 });
-	\Ý
-&VF7G26V7&WBfÇVW2g&öÒW'&÷'2"Â‚’Óâ°¢6öç7B&VF7FVBÒ&VF7E6V7&WG2†æWrW'&÷"‚'&÷f–FW"W6VB6²Ö&6FVfv†–¦¶ÆÖæ÷"’“° ¢76W'BæWVÂ‡&VF7FVBÂ$W'&÷#¢&÷f–FW"W6VBµ$TD5DTEÒ"“°§Ò“° 
+
+test("redacts secret values from errors", () => {
+  const redacted = redactSecrets(new Error("provider used sk-abcdefghijklmnop"));
+
+  assert.equal(redacted, "Error: provider used [REDACTED]");
+});

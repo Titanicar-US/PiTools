@@ -1,8 +1,36 @@
-//! Executable Gherkin coveraYH›ÜˆHX›XÈ›Ûİİ˜\[™ÙXšÛÚÈÛÛ˜XİË‚‚\ÙHİØÛÛXİ[ÛœÎ’\ÚÙ]œË›ØÙ\ÜÎÛÛ[X[™NÂ‚\ÙHİXİ[X™\µv÷&ÆB2òÂ¥Ù•¸°Ñ¡•¸°İ¡•½;	\ÙH]ÛÛÎÂˆ™YY˜XÚÎÂˆ™YY˜XÚË™YY˜XÚÔ™\K™YY˜XÚÔ™\U\™Ù]™\Z\‘XÚ\Ú[Û‹™\Z\‘\ÜÜÚ][Û‹ˆ™[™\—Ù™YY˜XÚ×Ü™\K™\Z\—Ù™YY˜XÚËˆKˆÚ]X›X[šY™\İ˜[Y]WÛX[šY™\İØÛÙKˆÚ]XØÛY[˜Xİ[Ûœ×Ú›Ø—ÚYÙ&öÕöFWF–Ç5÷W&ÂÂWfVÑÌèé•±¥Ù•Éå¹Ù•±½Á•ô°(€€€Á¤èéA¥)½‰I•ÅÕ•ÍĞ°(€€€ÁÉ}½¹ÑÉ½±Ìèéì(€€€€€€€½´rolAction, Com›Û™\]Y\İ][Tİ]\Ë[’][KVå7FFRÂ'Vå7FGW2ÂÇ•ö6öçG&öÂÀ¢ÒÀ¢vV&†öö³£§fW&–e}Í¥nature,
+//! Executable Gherkin coverage for the public bootstrap and webhook contracts.
+
+use std::{collections::HashSet, fs, process::Command};
+
+use cucumber::{World as _, given, then, when};
+use pitools::{
+    feedback::{
+        Feedback, FeedbackReply, FeedbackReplyTarget, RepairDecision, RepairDisposition,
+        render_feedback_reply, repair_feedback,
+    },
+    github::manifest::validate_manifest_code,
+    github::{client::actions_job_id_from_details_url, events::DeliveryEnvelope},
+    pi::PiJobRequest,
+    pr_controls::{
+        ControlAction, ControlRequest, ItemStatus, PlanItem, RunState, RunStatus, apply_control,
+    },
+    webhook::verify_signature,
 };
-use serde_hÛÛš6öã° ¢5¶FW&—fR„FV, Default, cucumber::World)]
+use serde_json::json;
+
+#[derive(Debug, Default, cucumber::World)]
 struct World {
-    confi]\˜][Û—Ù˜Z[Yˆ›ÛÛˆÙXÜ™]Ù^ÜÙYˆ›ÛÛˆØ]ÚYˆ›ÛÛˆ›ØÙ\ÜÙYÙ[]™\•ö–G3¢†6…6WCÅ7G&–æsâÀ¢VæWF†÷&—¦VC¢&ööÂÀ¢v÷&µ÷Æã¢÷F–öãÅ'Vå7FFSâÀ¢v÷&µ÷Æå÷7FGW3¢÷F–öãÅ¹MÑ…ÑÕÌø°(€€€™••‘‰…­}‘¥É•Ñ½Éäè=ÁÑ¥½¸ñÑ•µÁ™¥±”èéQ•µÁ¥Èø°(€€€™••‘‰…­}…ÁÁ±¥•è‰½½°°(€€€™••‘‰…­}½¹Ñ•¹ÑÌè=ÁÑ¥½¸ñMÑÉ¥¹œø°(€€€™••‘‰…­}½ÕÑ½µ”è=ÁÑ¥½¸ñMÑÉ¥¹>,
+    configuration_failed: bool,
+    secret_exposed: bool,
+    watched: bool,
+    processed_delivery_ids: HashSet<String>,
+    unauthorized: bool,
+    work_plan: Option<RunState>,
+    work_plan_status: Option<RunStatus>,
+    feedback_directory: Option<tempfile::TempDir>,
+    feedback_applied: bool,
+    feedback_contents: Option<String>,
+    feedback_outcome: Option<String>,
     feedback_target: Option<String>,
     feedback_reply: Option<String>,
     manifest_code_rejected: bool,
@@ -13,47 +41,127 @@ struct World {
     actions_job_id: Option<i64>,
     ci_admission_rejected: bool,
     pi_request_rejected: bool,
-    metrics_body: Option<StrinO‹ŸB‚ˆÖÖ—fVâ‚&æò•FööÇ27&VFVçF–Ç2&R6öæf•ÕÉ•ˆ¥t)™¸¹½}É•‘•¹Ñ¥…±Ì¡}İ½É±è€™µÕĞ]½É±¤íô((mİ¡•¸ „he doctor command loads configuration")]
+    metrics_body: Option<String>,
+}
+
+#[given("no PiTools credentials are configured")]
+fn no_credentials(_world: &mut World) {}
+
+#[when("the doctor command loads configuration")]
 fn doctor_loads_configuration(world: &mut World) {
     let output = Command::new(env!("CARGO_BIN_EXE_pitools"))
         .arg("doctor")
         .env_remove("DATABASE_URL")
         .env_remove("GITHUB_APP_ID")
-        .em—Ü™[[İ™J‘ÒUP—Ô’UUWÒÑVWÔUŠBˆ™[—Ü™[[İ™J‘ÒUP—ÕÑP’ÓÒ×ÔÑPÔ‘UŠBˆ™[—Ü™[[İ™JQRS—Ğ‘PT‘T—ÕÒÑS—ÒTÒŠBˆ›İ]]
-
-Bˆ™^Xİ
-œ[ˆ]ÛÛÈØİÜˆŠNÂˆ]ÛÛXš[™YH›Ü›X]Jˆ·×·Ò"À¢7G&–æs£¦I½µ}ÕÑ˜á}±½ÍÍä ™½ÕÑÁÕĞ¹ÍÑ‘½ÕĞ¤°(€€€€€€€MÑÉ¥¹œèé™É½µ}ÕÑ˜á}±½ÍÍä ™½ÕÑÁÕĞ³tderr)
+        .env_remove("GITHUB_PRIVATE_KEY_PATH")
+        .env_remove("GITHUB_WEBHOOK_SECRET")
+        .env_remove("ADMIN_BEARER_TOKEN_HASH")
+        .output()
+        .expect("run pitools doctor");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
     );
-    world.configuration_failed = !output.status,İXØÙ\ÜÊ
-NÂˆÛÜ›6V7&WEöW‡÷6VBÒ6öÖ&–æVBæ6öçF–Ì €rivate-key-value")
+    world.configuration_failed = !output.status.success();
+    world.secret_exposed = combined.contains("private-key-value")
         || combined.contains("webhook-secret-value")
-        || combined.comZ[œÊ˜YZ[‹Z\Ú]˜[YHŠNÂĞ ¢5·F†Vâ‚&6öæf•ÕÉ…Ñ¥½¸Ù…±¥‘…Ñ¥½¸™…¥±Ìİ¥Ñ¡½ÕĞ•áÁ½Í¥¹œÍ•É•ĞÙ…±Õ•Ìˆ¥t)™¸½¹™¥ÕÉ…Ñ¥½¹}™…¥±Í}±½Í•¡İ½É±è€™µÕĞ]½É±¤ì(€€€…ÍÍ•ÉĞ„¡İ½É±¹½¹™¥ÕÉ…Ñ¥½¹}™…¥±•¤ì(€€€…ÍÍ•Ä!(!world.secret_exposed);B‚ˆÖİÚ[ŠHÜ\˜]Üˆ™XYÈHÓH[ŠWB™›ˆÜ\˜]Ü—Ü™XY×ØÛWÚ[
-ÛÜ›ˆ	›]]ÛÜ›
-HÂˆ]İ]]HÛÛ[X[™›™]Ê[b‚$4$tõô$”åôU„U÷—FööÇ2"’¢æ$ ˆ´µ¡•±Àˆ¤(€€€€€€€€¹½ÕÑÁÕĞ ¤(€€€€€€€€¹•áÁ•Ğ ‚un pitools help");
-    let help = StrinN™œ›ÛWİ]ÛÜÜŞJ	›İ]]œİİ]
-NÂˆÛÜ››Ü\˜]Ü—ØÛÛ[X[™×Ù^ÜÙYHİ]]œİ]\ËœİXØÙ\ÜÊ
-Bˆ	‰ˆÈØ]Ú\İ‹™]™[G2"Â&VF—B"Â&6æ6VÂ%Ğ¢æ—FW"‚¢æÆÂ‡Æ6öÖÖæGÂ†VÇæ6öçF–ç2†6öÖÖæB’“°´((mÑ¡•¸ ‰Ñ¡”1$•áÁ½Í•Ì‰½Õ¹‘•¥¹ÍÁ•Ñ¥½¸…¹…¹•±±…Ñ¥½¸½µµ…¹‘Ìˆ¥t)™¸½Á•É…Ñ½É}½µµ…¹‘Í}…É•}•áÁ½Í•¡İ½É±è€™µÕĞ]½É±¤ì(€€€…ÍÍ•Ä!(world.operator_commands_exposed);
+        || combined.contains("admin-hash-value");
 }
 
-#[given("a GitHub pull request deliverHÚ]H˜[YÚYÛ˜]\™HŠWB™›ˆ˜[YÜ[Ü™\]Y\İÙ[]™\’‡v÷&ÆC¢f×WBv÷&ÆB’°¢ÆWB–ÆöBÒ½¸„¡ì(€€€€€€€€‰…Ñ¥½¸ˆè€‰½Á•¹•ˆ°(€€€€€€€€‰¥¹ÍÑ…±±…Ñ¥½¸ˆèì‰¥ˆè€ä°€‰…½Õ¹Ğˆèì‰±½¥¸ˆè€‰Q¥Ñ…¹¥…ÈµULˆ°€‰ÑåÁ”ˆè€‰=É…¹¥é…Ñ¥½¸‰õô°(€€€€€€€€‚epositorHˆÈšYˆŸKˆœ[Ü™\]Y\İˆÂˆšYˆLKˆ›[X™\ˆˆËˆ]Hˆ”™XYHˆ‹ˆš[İ\›ˆšÎ‹ËÖ—F‡V"æ6öÒõF—Fæ–6"ÕU2õ•FööÇ2÷VÆÂór"À¢'7FFR#¢&÷Vâ"À¢&ÖW&vVB#¢fÇ6RÀ¢&G&Pˆè™…±Í”°(€€€€€€€€€€€€…pdated_at": "2026-08-10T00:00:00Z",
-            "user": {"loZ[ˆˆ˜]]ÜˆÒÀ¢&†VB#¢²'6†#¢&†VB"Â'&Vb#¢&fVGW&R'ÒÀ¢&&6R#¢²'6†#¢&&6R"Â'&Vb#¢&Ö–â'Ğ¢Ğ¢Ò“°¢ÆWB&rÒ6W&FUö§6öã£‘½}Ù•Œ ™Á…å±½…¤¹•áÁ•Ğ ‰Í•É¥…±¥é”™¥áÑÕÉ”ˆ¤ì(€€€±•Ğ•¹Ù•±½Á”€ô(€€€€€€€•±¥Ù•Éå¹Ù•±½Á”èé™É½µ}Á…å±½… ‰‘•±¥Ù•Éä´Äˆ¹¥¹Ñ¼ ¤°€€ull_request".into(), payload, raw);
+#[then("configuration validation fails without exposing secret values")]
+fn configuration_fails_closed(world: &mut World) {
+    assert!(world.configuration_failed);
+    assert!(!world.secret_exposed);
+}
+
+#[when("the operator reads the CLI help")]
+fn operator_reads_cli_help(world: &mut World) {
+    let output = Command::new(env!("CARGO_BIN_EXE_pitools"))
+        .arg("--help")
+        .output()
+        .expect("run pitools help");
+    let help = String::from_utf8_lossy(&output.stdout);
+    world.operator_commands_exposed = output.status.success()
+        && ["watchlist", "events", "audit", "cancel"]
+            .iter()
+            .all(|command| help.contains(command));
+}
+
+#[then("the CLI exposes bounded inspection and cancellation commands")]
+fn operator_commands_are_exposed(world: &mut World) {
+    assert!(world.operator_commands_exposed);
+}
+
+#[given("a GitHub pull request delivery with a valid signature")]
+fn valid_pull_request_delivery(world: &mut World) {
+    let payload = json!({
+        "action": "opened",
+        "installation": {"id": 9, "account": {"login": "Titanicar-US", "type": "Organization"}},
+        "repository": {"id": 42},
+        "pull_request": {
+            "id": 1001,
+            "number": 7,
+            "title": "Ready PR",
+            "html_url": "https://github.com/Titanicar-US/PiTools/pull/7",
+            "state": "open",
+            "merged": false,
+            "draft": false,
+            "updated_at": "2026-08-10T00:00:00Z",
+            "user": {"login": "author"},
+            "head": {"sha": "head", "ref": "feature"},
+            "base": {"sha": "base", "ref": "main"}
+        }
+    });
+    let raw = serde_json::to_vec(&payload).expect("serialize fixture");
+    let envelope =
+        DeliveryEnvelope::from_payload("delivery-1".into(), "pull_request".into(), payload, raw);
     let signature = {
         use hmac::{Hmac, KeyInit, Mac};
         use sha2::Sha256;
         let mut mac = <Hmac<Sha256> as KeyInit>::new_from_slice(b"secret").expect("key");
-        mac.update(&em™[ÜKœ˜]×Ø›ÙJNÂˆ›Ü›X]JœÚLM^ßH‹^™[˜ÛÙJXXË™š[˜[^™J
-Kš[×Ø]\Ê
-JJBˆNÂˆ™\šY•÷6•¹…ÑÕÉ” ‰Í•É•Ğˆ°€™•¹Ù•±½Á”¹É…İ}‰½‘ä°€™Í¥¹…ÑÕÉ”¤¹•áÁ•Ğ ‰Ù…±¥Í¥nature");
+        mac.update(&envelope.raw_body);
+        format!("sha256={}", hex::encode(mac.finalize().into_bytes()))
+    };
+    verify_signature("secret", &envelope.raw_body, &signature).expect("valid signature");
     world.watched = envelope
         .pull_request_snapshot()
         .expect("valid PR payload")
-        .is_some_and(|snapshot| matches!(snapshot.state, pitools::models::PullRequestState::Open));B‚ˆÖİÚ[Š”UÛÛÈ™XÛÜ™ÈH[]™\HŠWB™›ˆ™XÛÜ™×Ù[]™\JÛÜ›ˆ	›]]ÛÜ›
-HÂˆÛÜ›œ›ØÙ\ÜÙYÙ[]™\•ö–G2æ–ç6W'B‚&FVÆ—fW$´Äˆ¹¥¹Ñ¼ ¤¤ì)ô((mÑ¡•¸ ‰Ñ¡”ÁÕ±°É•ÅÕ•ÍĞ¥Ìİ…Ñ¡•Õ¹Ñ¥°¥Ğ¥Ì±½Í•½Èµ•É•ˆ¥t)™¸ÁÕ±±}É•ÅÕ•ÍÑ}¥Í}İ…Ñ¡•¡İ½É±è€™µÕĞ]½É±¤ì(€€€…ÍÍ•ÉĞ„¡İ½É±¹İ…Ñ¡•¤ì(€€€…ÍÍ•ÉÑ}•Ä„¡İ½É±¹ÁÉ½•ÍÍ•‘}‘•±¥Ù•Éå}¥‘Ì¹±•¸ ¤°€Ä¤ì-
+        .is_some_and(|snapshot| matches!(snapshot.state, pitools::models::PullRequestState::Open));
+}
 
-#[given(!HØ[YHÚ]Xˆ[]™\HQ\È™XÙZ]™YÚXÙHŠWB™›ˆ\XØ]WÙ[]™\’‡v÷&ÆC¢f×WBv÷&ÆB’°¢v÷&Æ@¢ÁÉ½•ÍÍ•‘}‘•±¥Ù•Éå}¥‘Ì(€€€€€€€€¹¥¹Í•ÉĞ ‰‘•±¥Ù•Éäµ‘ÕÁ±¥…Ñ”ˆ¹¥¹Ñ¼ ¤¤ì(€€€İ½É±(€€€€€€€€¹ÁÉ½•ÍÍ•‘}‘•±¥Ù•É_ids
-        .insert("deliverKY\XØ]H‹š[Fò‚’“°§Ğ ¢5·v†Vâ‚%•FööÇ2&V6÷&G2&÷F‚FVÆ—fW&–W2"•Ğ¦fâ&V6÷&G5ö&÷F…öFVÆ—fW&–W2…÷v÷&ÆC¢f×WBv÷&ÆB’·Ğ ¢5·F†Vâ‚&öæÇ’öæRWfVçB—2&ö6W76VB"•Ğ¦fâöæUöWfVçE÷&ö6W76VB‡v÷&ÆC¢f×WBv÷&ÆB’°¢76W'EöW‡v÷&ÆBç&ö6W76VEöFVÆ—fW%}¥‘Ì¹±•¸ ¤°€Ä¤ì)ô((miven("a webhook with an invalid X-Hub-Signature-256 header")]
-fn im˜[YİÙXšÛÚÊÛÜ›ˆ	›]]ÛÜ›
-HÂˆÛÜ›VæWF†÷&—¦VBÒfW&–g•÷6–væGW&R‚•É•Ğˆ°‰ÈŒ‰íôˆŒ°€‰Í¡„ÈÔØõ¥¹Ù…±¥ˆ¤¹¥Í}•Â();
+#[when("PiTools records the delivery")]
+fn records_delivery(world: &mut World) {
+    world.processed_delivery_ids.insert("delivery-1".into());
+}
+
+#[then("the pull request is watched until it is closed or merged")]
+fn pull_request_is_watched(world: &mut World) {
+    assert!(world.watched);
+    assert_eq!(world.processed_delivery_ids.len(), 1);
+}
+
+#[given("the same GitHub delivery ID is received twice")]
+fn duplicate_delivery(world: &mut World) {
+    world
+        .processed_delivery_ids
+        .insert("delivery-duplicate".into());
+    world
+        .processed_delivery_ids
+        .insert("delivery-duplicate".into());
+}
+
+#[when("PiTools records both deliveries")]
+fn records_both_deliveries(_world: &mut World) {}
+
+#[then("only one event is processed")]
+fn one_event_processed(world: &mut World) {
+    assert_eq!(world.processed_delivery_ids.len(), 1);
+}
+
+#[given("a webhook with an invalid X-Hub-Signature-256 header")]
+fn invalid_webhook(world: &mut World) {
+    world.unauthorized = verify_signature("secret", br#"{}"#, "sha256=invalid").is_err();
 }
 
 #[when("the webhook receiver handles the request")]
@@ -62,30 +170,62 @@ fn webhook_handles_request(_world: &mut World) {}
 #[then("it returns unauthorized before recording an event")]
 fn webhook_rejects_before_recording(world: &mut World) {
     assert!(world.unauthorized);
-    assert!(world.processed_deliverWÚYËš\×Ù[\J
-JNÂŸB‚ˆÖÙÚ]™[Š˜H[›š[™ÈUÛÛÈÛÜšÈ[ˆŠWB™›ˆVææ–æu÷v÷&µ÷Æâ‡v÷&ÆC¢f×WBv÷&ÆB’°¢ÆWB—FV×2ÒfV2°¢Æä—FVÓ£¦æWr‚&fVVF&6²"Â&Ç’WFöÖF–öâfVVF&6²"Â—FVÕ7FGW3£¥VæF–ær¢æW‡V7B‚&fVVF&6²—FVÒ"’À¢Æä—FVÓ£¦æWr‚'FW7G2"Â''VâfÆ–FF–öâ"Â—FVÕ7FGW3£¥VæF–ær’æW‡V7B‚'FW7G2—FVÒ"’À¢Ó°¢v÷&ÆBİ½É­}Á±…¸€ôM½µ”¡EnState::new(items).expect("runninH[ˆŠJNÂĞ ¢5¶v—fVâ‚&•FööÇ2v÷&²Æâv—F–ærf÷"&÷fÂ"•Ğ¦fâv—F–æu÷v÷&µ÷Æâ‡v÷&ÆC¢f×WBv÷&ÆB’°¢ÆWB—FV×2ÒfV2°¢Æä—FVÓ£¦æWr‚&fVVF&6²"Â&Ç’WFöÖF–öâfVVF&6²"Â—FVÕ7FGW3£¥VæF–ær¢æW‡V7B‚&fVVF&6²—FVÒ"’À¢Ó°¢v÷&ÆBçv÷&µ÷ÆâÒ6öÖR…'Vå7FFS£§v—F–å}…ÁÁÉ½Ù…°¡¥Ñ•µÌ¤¹•áÁ•Ğ ‡aiting plan"));
+    assert!(world.processed_delivery_ids.is_empty());
+}
+
+#[given("a running PiTools work plan")]
+fn running_work_plan(world: &mut World) {
+    let items = vec![
+        PlanItem::new("feedback", "apply automation feedback", ItemStatus::Pending)
+            .expect("feedback item"),
+        PlanItem::new("tests", "run validation", ItemStatus::Pending).expect("tests item"),
+    ];
+    world.work_plan = Some(RunState::new(items).expect("running plan"));
+}
+
+#[given("a PiTools work plan waiting for approval")]
+fn waiting_work_plan(world: &mut World) {
+    let items = vec![
+        PlanItem::new("feedback", "apply automation feedback", ItemStatus::Pending)
+            .expect("feedback item"),
+    ];
+    world.work_plan = Some(RunState::waiting_approval(items).expect("waiting plan"));
 }
 
 #[when("the pull request author approves the plan")]
 fn author_approves_plan(world: &mut World) {
     let state = world.work_plan.as_ref().expect("work plan");
-    let request = Com›Û™\]Y\İ›™]Ê&WVW7BÖ&÷fR"Â&WF†÷""Â6öçG&öÄ7F–öã£¤&÷fUÆâ¢æW‡V7B‚&&÷fÂ&WVW7B"“°¢v÷&ÆBçv÷&µ÷ÆâĞ¢6öÖR†Ç•ö6öçG&öÂ‡7FFRÂI•ÅÕ•ÍĞ°€‰…ÕÑ¡½Èˆ°€™mt¤¹•áÁ•Ğ ‰…ÕÑ¡½È¥Ì…ÕÑ¡½É¥é•ˆ¤¤ì(€€€İ½É±¹İ½É­}Á±…¹}ÍÑ…ÑÕÌ€ôİ½É±¹İ½É­}Á±…¸¹…Í}É•˜ ¤¹µ…À¡IÕ¹MÑ…Ñ”èéÍÑ…ÑÕÌ¤ì)ô((mİ¡•¸ ‰Ñ¡”ÁÕ±°É•ÅÕ•ÍĞ…ÕÑ¡½ÈÍ­¥ÁÌÑ¡”Á±…¹¹•¥Ñ•´ˆ¥t)™¸…ÕÑ¡½É}Í­¥ÁÍ}İ…¥Ñ¥¹_item(world: &mut World) {
-    let state = world-ÛÜš×Ü[‹˜\×Ü™YŠ
-K™^Xİ
-v÷&²Æâ"“°¢ÆWB&WVW7BÒ6öçG&öÅ&WVW7C£¦æWr€¢'&WVW7B×6¶—×v—F–ær"À¢&WF†÷""À¢6öçG&öÄ7F–öã£¥6¶—7W	•´Item,
+    let request = ControlRequest::new("request-approve", "author", ControlAction::ApprovePlan)
+        .expect("approval request");
+    world.work_plan =
+        Some(apply_control(state, &request, "author", &[]).expect("author is authorized"));
+    world.work_plan_status = world.work_plan.as_ref().map(RunState::status);
+}
+
+#[when("the pull request author skips the planned item")]
+fn author_skips_waiting_item(world: &mut World) {
+    let state = world.work_plan.as_ref().expect("work plan");
+    let request = ControlRequest::new(
+        "request-skip-waiting",
+        "author",
+        ControlAction::SkipCurrentItem,
     )
     .expect("skip request");
     world.work_plan =
-        Some(apply_control(state, $™\]Y\İ˜]]Üˆ‹	–×JK™^Xİ
-˜]]Üˆ\È]]Üš^™YŠJNÂˆÛÜ›ÛÜš×Ü[—Üİ]\ÈHÛÜ›ÛÜš×Ü[‹˜\×Ü™YŠ
-K›X\
-[”İ]Nœİ]\ÊNÂŸB‚ˆÖİ[ŠHØZ][™È[ˆX\šÜÈH][HÚÚ\YŠWB™›ˆØZ][™×Ú][WÚ\×ÜÚÚ\Y
-ÛÜ›ˆ	›]]ÛÜ›
-HÂˆ\ÜÙ\Ù\HJÛÜ›ÛÜš×Ü[—Üİ]\ËÛÛYJ[”İ]\ÎÛÛ\]Y
-JNÂˆ\ÜÙ\Ù\HJˆÛÜ›ÛÜš×Ü[‹˜\×Ü™YŠ
-K™^Xİ
-ÛÜšÈ[ˆŠKš][\Ê
-VÌK7FGW2‚’À¢—FVÕ7FGW3£¥6¶—V@¢“°´((mÑ¡•¸ ‰Ñ¡”…ÁÁÉ½Ù•Á±…¸ÍÑ…Äs its first work item")]
+        Some(apply_control(state, &request, "author", &[]).expect("author is authorized"));
+    world.work_plan_status = world.work_plan.as_ref().map(RunState::status);
+}
+
+#[then("the waiting plan marks the item skipped")]
+fn waiting_item_is_skipped(world: &mut World) {
+    assert_eq!(world.work_plan_status, Some(RunStatus::Completed));
+    assert_eq!(
+        world.work_plan.as_ref().expect("work plan").items()[0].status(),
+        ItemStatus::Skipped
+    );
+}
+
+#[then("the approved plan starts its first work item")]
 fn approved_plan_starts(world: &mut World) {
     assert_eq!(world.work_plan_status, Some(RunStatus::Running));
     assert_eq!(
@@ -94,21 +234,72 @@ fn approved_plan_starts(world: &mut World) {
     );
 }
 
-#[given("a stack branch requires a historH™]Üš]HŠWB™›ˆİXÚ×Øœ˜[˜ÚÜ™\]Z\™\×Ü™]Üš]JÛÜ›ˆ	›]]ÛÜ›
-HÂˆ\ÙH]ÛÛÎ7F6³£§´	…¹¡MÑ…Ñ”°I•‰…Í•A±…¹¹•È°I•‰…Í•A½±¥ä°I•‰…Í•Q…É•Ñôì(€€€ÕÍ”ÍÑèé½±±•Ñ¥½¹Ìèé	QÉ••M•Ğì((€€€±•Ğ‚anch = @˜[˜Úİ]HÂˆ˜[YNˆœ]ÛÛËÜİXÚÈ‹š[Fò‚’À¢6ÆVã¢G'VRÀ¢7W'&VçC¢G'VRÀ¢&÷Eö÷væVC¢G'VRÀ¢Ó°¢ÆWBÆâĞ¢&V&6UÆææW#£±…¸ ™‰É…¹ °€™I•‰…Í•Q…É•ĞèéÉ•‰…Í•}½¹Ñ¼ ‰µ…¥¸ˆ¤¤¹•áÁ•Ğ ‰É•‰…Í”Á±…¸ˆ¤ì(€€€İ½É±¹É•‰…Í•}‘•™…Õ±Ñ}É•©•Ñ•€ôI•‰…Í•A½±¥äèé‘•™…Õ±Ğ ¤(€€€€€€€€¹…ÕÑ¡½É¥é•}ÁÕÍ  ™‚anch, &plan)
+#[given("a stack branch requires a history rewrite")]
+fn stack_branch_requires_rewrite(world: &mut World) {
+    use pitools::stack::{BranchState, RebasePlanner, RebasePolicy, RebaseTarget};
+    use std::collections::BTreeSet;
+
+    let branch = BranchState {
+        name: "pitools/stack".into(),
+        clean: true,
+        current: true,
+        bot_owned: true,
+    };
+    let plan =
+        RebasePlanner::plan(&branch, &RebaseTarget::rebase_onto("main")).expect("rebase plan");
+    world.rebase_default_rejected = RebasePolicy::default()
+        .authorize_push(&branch, &plan)
         .is_err();
     world.rebase_explicit_allowed = RebasePolicy {
         allow_bot_owned_rewrite: true,
-        approved_bot_owned_branches: BTreeSet::d›ÛJÈ—FööÇ2÷7F6²"æ–çFò‚•Ò’À¢Ğ¢æWF†÷&—¦U÷W6‚‚f'&æ6‚ÂgÆâ¢æ—5öö²‚“°´((mÑ¡•¸ ‰¡¥ÍÑ½ÉäÉ•İÉ¥Ñ•Ì…É”…±±½İ•½¹±ä™½È…¸•áÁ±¥¥Ğ‰½Ğµ½İ¹•‚anch")]
-fn explicit_rebase_authorization(world: &mut World) {
-    asseqJÛÜ›&V&6UöFVfVÇE÷&V¦V7FVB“°¢76W'B‡v÷&ÆBç&V&6UöW‡Æ–6—EöÆÆ÷vVB“°§Ğ ¢5¶v—fVâ‚&4’f–ÇW&R6öçF–ÌÉ•‘•¹Ñ¥…°µÍ¡…Á•Ñ•áĞˆ¥t)™¸¥}™…¥±ÕÉ•}½´ains_secret_text(world: &mut World) {
-    world.ci_evidence = Some("Authorization: Bearer ZÙ^[\W™\œ›ÜˆÛÛ\[][Ûˆ˜Z[Y‹š[Ê
-JNÂŸB‚ˆÖİÚ[Š”UÛÛÈ™\\™\ÈÒH]šY[˜ÙHŠWB™›ˆ™\\™\×ØÚWÙ]šY[˜ÙJÛÜ›ˆ	›]]ÛÜ›
-HÂˆÛÜ›˜ÚWÙ]šY[˜ÙHHÛÜ›ˆ˜ÚWÙ]šY[˜ÙBˆF¶R‚¢æÖ‡ÇfÇVWÂ—FööÇ3£¦6“£§&VF7Eö6•÷FW‡B‚Y…±Õ”¤¤ì-
+        approved_bot_owned_branches: BTreeSet::from(["pitools/stack".into()]),
+    }
+    .authorize_push(&branch, &plan)
+    .is_ok();
+}
 
-#[then("the CI evidence comZ[œÈ›ÈÜ™Y[F–Â×6†VBFW‡B"•Ğ¦fâ6•öWf–FVæ6Uö—5÷&VF7FVB‡v÷&ÆC¢f×WBv÷&ÆB’°¢ÆWBWf–FVæ6RÒv÷&ÆBæ6•öWf–FVæ6Ræ5öFW&Vb‚’æW‡V7B‚$4’Wf–FVæ6R"“°¢76W'B‚Wf–FVæ6Ræ6öçF–Ì ‰¡Á}•á…µÁ±”ˆ¤¤ì(€€€…ÍÍ•ÉĞ„¡•Ù¥‘•¹”¹½¹Ñ…¥¹Ì ‰mIQtˆ¤¤ì)ô((miven("a failed GitHub ActiolÈÚXÚÈ\ÈÙÜÈ[™[››İ][ÛœÈŠWB™›ˆ˜Z[YØXİ[Ûœ×ØÚXÚÊÛÜ›ˆ	›]]ÛÜ›
-HÂˆÛÜ›˜ÚWÙ]šY[˜ÙHHÛÛYJ˜Xİ[Û2ÖWf–FVæ6RÖf—‡GW&R"æ–çFò‚’“°§Ğ ¢5·v†Vâ‚%•FööÇ2&W&W2F†R7F–öç2F–væ÷6—2VÙ•±½Á”ˆ¥t)™¸ÁÉ•Á…É•Í}…Ñ¥½¹Í}‘¥…¹½Í¥Ì¡İ½É±è€™µÕĞ]½É±¤ì(€€€İ½É±¹¥}•Ù¥‘•¹”€ôM½µ” (€€€€€€€Á¥Ñ½½±Ìèé¤èéÁÉ•Á…É•}¥}•Ù¥‘•¹” (€€€€€€€€€€€€™£on!({"checks": [{"external_id": "81"}]}),
-            &hÛÛˆJŞÂˆ˜Xİ[Ûœ×ÛÙÈˆ™\&÷#¢FW7Bf–ÆVB"À¢&ææ÷FF–öç2#¢·²'F‚#¢'7&2öÆ–"ÉÌˆ°€‰µ•ÍÍ…”ˆè€‰…ÍÍ•ÉÑ¥½¸™…¥±•‰õt(€€€€€€€€€€€õt¤°(€€€€€€€€¤(€€€€€€€€¹•áÁ•Ğ ‰Ñ¥½³ evidence serializes"),
+#[then("history rewrites are allowed only for an explicit bot-owned branch")]
+fn explicit_rebase_authorization(world: &mut World) {
+    assert!(world.rebase_default_rejected);
+    assert!(world.rebase_explicit_allowed);
+}
+
+#[given("a CI failure contains credential-shaped text")]
+fn ci_failure_contains_secret_text(world: &mut World) {
+    world.ci_evidence = Some("Authorization: Bearer ghp_example\nerror: compilation failed".into());
+}
+
+#[when("PiTools prepares CI evidence")]
+fn prepares_ci_evidence(world: &mut World) {
+    world.ci_evidence = world
+        .ci_evidence
+        .take()
+        .map(|value| pitools::ci::redact_ci_text(&value));
+}
+
+#[then("the CI evidence contains no credential-shaped text")]
+fn ci_evidence_is_redacted(world: &mut World) {
+    let evidence = world.ci_evidence.as_deref().expect("CI evidence");
+    assert!(!evidence.contains("ghp_example"));
+    assert!(evidence.contains("[REDACTED]"));
+}
+
+#[given("a failed GitHub Actions check has logs and annotations")]
+fn failed_actions_check(world: &mut World) {
+    world.ci_evidence = Some("actions-evidence-fixture".into());
+}
+
+#[when("PiTools prepares the Actions diagnosis envelope")]
+fn prepares_actions_diagnosis(world: &mut World) {
+    world.ci_evidence = Some(
+        pitools::ci::prepare_ci_evidence(
+            &json!({"checks": [{"external_id": "81"}]}),
+            &json!([{
+                "actions_log": "error: test failed",
+                "annotations": [{"path": "src/lib.rs", "message": "assertion failed"}]
+            }]),
+        )
+        .expect("Actions evidence serializes"),
     );
 }
 
@@ -116,113 +307,268 @@ HÂˆÛÜ›˜ÚWÙ]šY[˜ÙHHÛÛYJ˜Xİ[Û2ÖWf–FVæ6RÖf—‡GW&R"æ–çFò‚’“°§Ğ ¢5·v†Vâ‚%
 fn actions_evidence_is_retained(world: &mut World) {
     let evidence = world.ci_evidence.as_deref().expect("Actions evidence");
     assert!(evidence.contains("test failed"));
-    asseqJ]šY[˜ÙK˜ÛÛF–ç2‚'7&2öÆ–"ÉÌˆ¤¤ì(€€€…ÍÍ•ÉĞ„¡•Ù¥‘•¹”¹½¹Ñ…¥¹Ì ‰…ÍÍ•ÉÑ¥½¸™…¥±•ˆ¤¤ì)ô((miven("an Actions check run details URL")]
-fn actions_check_run_details_url(world: &mut World) {
-    world.actiol×Ú›Ø—ÚYH›Û™NÂŸB‚ˆÖİÚ[Š”UÛÛÈ™\ÛÛ™\ÈHÛÜšÙ›İÈ›ØˆQ›ÜˆXİ[Û2ÆõÌˆ¥t)™¸É•Í½±Ù•Í}…Ñ¥½¹Í}©½‰}¥¡İ½É±è€™µÕĞ]½É±¤ì(€€€İ½É±¹…Ñ¥½¹Í}©½‰}¥€ô…Ñ¥½¹Í}©½‰}¥‘}™É½µ}‘•Ñ…¥±Í}ÕÉ°¡M½µ” (€€€€€€€€‰¡ÑÑÁÌè¼½¥Ñ¡Õˆ¹½´½…µ”½İ¥‘•ÑÌ½…Ñ¥½¹Ì½ÉÕ¹Ì¼ÈäØÜäĞĞä½©½ˆ¼ÌääĞĞĞĞäØˆ°(€€€€¤¤ì-
+    assert!(evidence.contains("src/lib.rs"));
+    assert!(evidence.contains("assertion failed"));
+}
 
-#[then("it resolves the workflow job ID without usinHHÚXÚÈ[ˆQŠWB™›ˆXİ[Ûœ×Ú›Ø—ÚYÚ\×Ù\İ[˜İÙ&öÕö6†V6µ÷'Våö–B‡v÷&ÆC¢f×WBv÷&ÆB’°¢76W'EöW‡v÷&ÆBæ7F–öç5ö¦ö%ö–BÂ6öÖRƒ3““CCCC“b’“°¢76W}¹”„¡İ½É±¹…Ñ¥½³_job_id, Some(81));B‚ˆÖÙÚ]™[Š˜H\YÒH™\Z\ˆ]Ú\È›ÜÜÙYÚ]İ]\›İ˜[ŠWB™›ˆ\YØÚWÜ]ÚİÚ]İ]Ø\›İ˜[
-ÛÜ›ˆ	›]]ÛÜ›
-HÂˆÛÜ›˜ÚWØYZ\ÜÚ[Û—Ü™Z™XİYH˜[ÙNÂĞ ¢5·v†Vâ‚%•FööÇ2FÖ—G2F†R4’×WFF–öâ"•Ğ¦fâFÖ—G5ö6•ö×WFF–öâ‡v÷&ÆC¢f×WBv÷&ÆB’°¢v÷&ÆBæ6•öFÖ—76–öå÷&V¦V7FVBÒÖF6†W2€¢—FööÇ3£¦6“£¦FÖ—Eö6•ö×WFF–öâƒÂfÇ6RÂG”¤°(€€€€€€€Â(pitools::ci::CiError::ApprovalRequired)
+#[given("an Actions check run details URL")]
+fn actions_check_run_details_url(world: &mut World) {
+    world.actions_job_id = None;
+}
+
+#[when("PiTools resolves the workflow job ID for Actions logs")]
+fn resolves_actions_job_id(world: &mut World) {
+    world.actions_job_id = actions_job_id_from_details_url(Some(
+        "https://github.com/acme/widgets/actions/runs/29679449/job/399444496",
+    ));
+}
+
+#[then("it resolves the workflow job ID without using the check run ID")]
+fn actions_job_id_is_distinct_from_check_run_id(world: &mut World) {
+    assert_eq!(world.actions_job_id, Some(399444496));
+    assert_ne!(world.actions_job_id, Some(81));
+}
+
+#[given("a typed CI repair patch is proposed without approval")]
+fn typed_ci_patch_without_approval(world: &mut World) {
+    world.ci_admission_rejected = false;
+}
+
+#[when("PiTools admits the CI mutation")]
+fn admits_ci_mutation(world: &mut World) {
+    world.ci_admission_rejected = matches!(
+        pitools::ci::admit_ci_mutation(1, false, true),
+        Err(pitools::ci::CiError::ApprovalRequired)
     );
 }
 
-#[then(!HÒH]]][Ûˆ\È™Z™XİYÚ]İ]^XÚ]\›İ˜[ŠWB™›ˆÚWÛ]]][Û—Ú\×Ü™Z™XİYİÚ]İ]Ø\›İ˜[
-ÛÜ›ˆ	›]]ÛÜ›
-HÂˆ\ÜÙ\JÛÜ›˜ÚWØYZ\ÜÚ[Û—Ü™Z™XİY
-NÂŸB‚ˆÖÖ—fVâ‚&’v÷&¶W"&WVW7Bv—F‚æöâÖ6æöæ–6Â6æ6†÷BF‚"•Ğ¦fâ•÷&WVW7E÷v—F…öæöåö6æöæ–6Å÷6æ6†÷E÷F‚‡v÷&ÆC¢f×WBv÷&ÆB’°¢ÆWB&WVW7BÒ”¦ö%&WVW7B°¢&÷Fö6öÅ÷fW'6–öã¢'—FööÇ2ç’÷c"æ–çFò‚’À¢¦ö%ö–C¢WV–C£¥WV–C£¦æ÷u÷cr‚’À¢&W÷6—F÷'“¢&W†×ÆR÷&Wò"æ–çFò‚’À¢6æ6†÷E÷Fƒ¢"÷v÷&·76R÷&Wò"æ–çFò‚’À¢ÆÆ÷vVE÷F‡3¢fV2²'7&2öÆ–"ÉÌˆ¹¥´o()],
+#[then("the CI mutation is rejected without explicit approval")]
+fn ci_mutation_is_rejected_without_approval(world: &mut World) {
+    assert!(world.ci_admission_rejected);
+}
+
+#[given("a Pi worker request with a non-canonical snapshot path")]
+fn pi_request_with_non_canonical_snapshot_path(world: &mut World) {
+    let request = PiJobRequest {
+        protocol_version: "pitools.pi/v1".into(),
+        job_id: uuid::Uuid::now_v7(),
+        repository: "example/repo".into(),
+        snapshot_path: "/workspace/repo".into(),
+        allowed_paths: vec!["src/lib.rs".into()],
         failure_evidence: None,
-        policy_revision: "sha2568ÛXŞH‹š[Ê
-Kˆ›Û˜ÙNˆ››Û˜ÙH‹š[Ê
-KˆNÂˆÛÜ›œWÜ™\]Y\İÜ™Z™XİYH™\]Y\İ˜[Y]J
-Kš\×Ù\œŠ
-NÂŸB‚ˆÖİÚ[Š”UÛÛÈ˜[Y]\ÈHHÛÜšÙ\ˆ™\]Y\İŠWB™›ˆ˜[Y]\×ÜWİÛÜšÙ\—Ü™\]Y\İ
-İÛÜ›ˆ	›]]ÛÜ›
-HßB‚ˆÖİ[ŠHHÛÜšÙ\ˆ™\]Y\İ\È™Z™XİY™Y›Ü™H›İšY\ˆ^Xİ][ÛˆŠWB™›ˆWİÛÜšÙ\—Ü™\]Y\İÚ\×Ü™Z™XİY
-ÛÜ›ˆ	›]]ÛÜ›
-HÂˆ\ÜÙ\JÛÜ›œWÜ™\]Y\İÜ™Z™XİY
-NÂŸB‚ˆÖÖ—fVâ‚%•FööÇ2†2&V6V—fVBvV&†öö²"•Ğ¦fâ&V6V—fVE÷vV&†öö²‡v÷&ÆC¢f×WBv÷&ÆB’°¢ÆWBÖWG&–72Ò—FööÇ3£¦ÖWG&–73£¤ÖWG&–73£¦FVfVÇB‚“°¢ÖWG&–72ç&V6÷&E÷vV&†ööµ÷&V6V—fVB‚“°¢v÷&ÆBæÖWG&–75ö&öG’Ò6öÖR†ÖWG&–72É•¹‘•É}ÁÉ½µ•Ñ¡•ÕÌ ¤¤ì)ô((mİ¡•¸ „he operator reads Prometheus metrics")]
+        policy_revision: "sha256:policy".into(),
+        nonce: "nonce".into(),
+    };
+    world.pi_request_rejected = request.validate().is_err();
+}
+
+#[when("PiTools validates the Pi worker request")]
+fn validates_pi_worker_request(_world: &mut World) {}
+
+#[then("the Pi worker request is rejected before provider execution")]
+fn pi_worker_request_is_rejected(world: &mut World) {
+    assert!(world.pi_request_rejected);
+}
+
+#[given("PiTools has received a webhook")]
+fn received_webhook(world: &mut World) {
+    let metrics = pitools::metrics::Metrics::default();
+    metrics.record_webhook_received();
+    world.metrics_body = Some(metrics.render_prometheus());
+}
+
+#[when("the operator reads Prometheus metrics")]
 fn reads_prometheus_metrics(_world: &mut World) {}
 
-#[then("the received webhook coum\ˆ\È^ÜÙYŠWB™›ˆ™XÙZ]™YİÙXšÛÚ×ØÛİ[FW%öW‡÷6VB‡v÷&ÆC¢f×WBv÷&ÆB’°¢76W„ (€€€€€€€İ½É±(€€€€€€€€€€€€¹µ•ÑÉ¥Í}‰½‘ä(€€€€€€€€€€€€¹…Í}‘•É•˜ ¤(€€€€€€€€€€€€¹•áÁ•Ğ ‰µ•ÑÉ¥Ìˆ¤(€€€€€€€€€€€€¹½¹Ñ…¥¹Ì ‰Á¥Ñ½½±Í}İ•‰¡½½­}É••¥Ù•‘}Ñ½Ñ…°€Äˆ¤(€€€€¤ì)ô((mİ¡•¸ ‰Ñ¡”ÁÕ±°É•ÅÕ•ÍĞ…ÕÑ¡½ÈÉ•ÅÕ•ÍÑÌ…¹•±±…Ñ¥½¸ˆ¥t)™¸…ÕÑ¡½É}…¹•±Í}Á±…¸¡İ½É±è€™µÕĞ]½É±¤ì(€€€±•ĞÍÑ…Ñ”€ôİ½É±¹İ½É­}Á±…¸¹…Í}É•˜ ¤¹•áÁ•Ğ ‰İ½É¬Á±…¸ˆ¤ì(€€€±•ĞÉ•ÅÕ•ÍĞ€ô½´rolRequest::new( ™\]Y\İX]]Üˆ‹˜]]Üˆ‹ÛÛG&öÄ7F–öã£¤6æ6VÅ'Vâ¢æW‡V7B‚&6öçG&öÂ&WVW7B"“°¢v÷&ÆBİ½É­}Á±…¸€ô(€€€€€€€M½µ”¡…ÁÁ±å}½¹ÑÉ½°¡ÍÑ…Ñ”°€™É•ÅÕ•ÍĞ°€‰…ÕÑ¡½Èˆ°€™mt¤¹•áÁ•Ğ ‰…ÕÑ¡½È¥Ì…ÕÑ¡½É¥é•ˆ¤¤ì(€€€İ½É±·ork_plan_status = world.work_plan.as_ref().map(RunState::status);
+#[then("the received webhook counter is exposed")]
+fn received_webhook_counter_exposed(world: &mut World) {
+    assert!(
+        world
+            .metrics_body
+            .as_deref()
+            .expect("metrics")
+            .contains("pitools_webhook_received_total 1")
+    );
+}
+
+#[when("the pull request author requests cancellation")]
+fn author_cancels_plan(world: &mut World) {
+    let state = world.work_plan.as_ref().expect("work plan");
+    let request = ControlRequest::new("request-author", "author", ControlAction::CancelRun)
+        .expect("control request");
+    world.work_plan =
+        Some(apply_control(state, &request, "author", &[]).expect("author is authorized"));
+    world.work_plan_status = world.work_plan.as_ref().map(RunState::status);
 }
 
 #[then("all remaining work is cancelled")]
 fn all_work_cancelled(world: &mut World) {
-    asseqÙ\HJÛÜ›v÷&µ÷Æå÷7FGW2Â6öÖR…¹MÑ…ÑÕÌèé…¹•±±•¤¤ì(€€€…ÍÍ•ÉĞ„ (€€€€€€€İ½É±(€€€€€€€€€€€€·ork_plan
+    assert_eq!(world.work_plan_status, Some(RunStatus::Cancelled));
+    assert!(
+        world
+            .work_plan
             .as_ref()
             .expect("work plan")
             .items()
             .iter()
-            .all(|item| item,İ]\Ê
-HOH][Tİ]\ÎØ[˜Ù[Y
-Bˆ
-NÂĞ ¢5·v†Vâ‚&6öæf–wW&VBÖ–çF–æW"6¶—2F†R7W	•´ item")]
+            .all(|item| item.status() == ItemStatus::Cancelled)
+    );
+}
+
+#[when("a configured maintainer skips the current item")]
 fn maintainer_skips_item(world: &mut World) {
-    let state = world-ÛÜš×Ü[‹˜\×Ü™YŠ
-K™^Xİ
-v÷&²Æâ"“°¢ÆWB&WVW7BÒ6öçG&öÅ&WVW7C£¦æWr€¢'&WVW7BÖÖ–çF–æW""À¢&Ö–çF–æW""À¢6öçG&öÄ7F–öã£¥6¶—7W'&VçD—FVÒÀ¢¢æW‡V7B‚&6öçG&öÂ&WVW7B"“°¢v÷&ÆBİ½É­}Á±…¸€ôM½µ” (€€€€€€€…ÁÁ±å}½¹ÑÉ½°¡ÍÑ…Ñ”°€’equest, "author", &["maintainer".imÊ
-WJBˆ™^Xİ
-›XZ[Z[™\ˆ\È]]Üš^™YŠKˆ
-NÂˆÛÜ›ÛÜš×Ü[—Üİ]\ÈHÛÜ›ÛÜš×Ü[‹˜\×Ü™YŠ
-K›X\
-[”İ]Nœİ]\ÊNÂŸB‚ˆÖİ[ŠH™^ÛÜšÈ][H\È[ˆ›ÙÜ™\ÜÈŠWB™›ˆ™^İÛÜš×Ú][WÚ[—Ü›ÙÜ™\ÜÊÛÜ›ˆ	›]]ÛÜ›
-HÂˆ\ÜÙ\Ù\HJÛÜ›ÛÜš×Ü[—Üİ]\ËÛÛYJ[”İ]\Î”[›š[™ÊJNÂˆ]][\ÈHÛÜ›v÷&µ÷Æâæ5÷&Vb‚’æW‡V7B‚½É¬Á±…¸ˆ¤¹¥Ñ•µÌ ¤ì(€€€…ÍÍ•Ä_eq!(items[0],İ]\Ê
-K][Tİ]\Î”ÚÚ\Y
-NÂˆ\ÜÙ\Ù\HJ][\ÖÌWKœİ]\Ê
-K][Tİ]\Î’[”›ÙÜ™\ÜÊNÂŸB‚ˆÖÙÚ]™[Š˜[ˆ\›İ™Y[›[™H]]ÛX][ÛˆİYÖW7F–öâ"•Ğ¦fâ&÷fVEö–æÆ–æU÷7Vu•ÍÑ¥½¸¡İ½É±è€™µÕĞ]½É±¤ì(€€€±•Ğ‘¥É•Ñ½Éä€ôÑ•µÁ™¥±”èäempdir().expect("feedback directory");
-    dÎw&—FR†F—&V7F÷'’çF‚‚’æ¦ö–â‚&f–ÆRçG‡B"’Â&öÆEÆç6V6öæEÆâ"’æW‡V7B‚&fVVF&6²f—‡GW&R"“°¢v÷&ÆBæfVVF&6µöF—&V7F÷'’Ò6öÖR†F—&V7F÷'’“°§Ğ ¢5·v†Vâ‚%•FööÇ2Æ–W2F†R7VvvW7F–öâ"•Ğ¦fâÆ–W5÷7Vu•ÍÑ¥½¸¡İ½É±è€™µÕĞ]½É±¤ì(€€€±•Ğ‘¥É•Ñ½Éä€ôİ½É±(€€€€€€€€¹™••‘‰…­}‘¥É•Ñ½Éä(€€€€€€€€¹…Í}É•˜ ¤(€€€€€€€€¹•áÁ•Ğ ‰™••‘‰…¬‘¥É•Ñ½Éäˆ¤ì(€€€±•Ğ½ÕÑ½µ”€ôÉ•Á…¥É}™••‘‰…¬ (€€€€€€€‘¥É•Ñ½É.path(),
+    let state = world.work_plan.as_ref().expect("work plan");
+    let request = ControlRequest::new(
+        "request-maintainer",
+        "maintainer",
+        ControlAction::SkipCurrentItem,
+    )
+    .expect("control request");
+    world.work_plan = Some(
+        apply_control(state, &request, "author", &["maintainer".into()])
+            .expect("maintainer is authorized"),
+    );
+    world.work_plan_status = world.work_plan.as_ref().map(RunState::status);
+}
+
+#[then("the next work item is in progress")]
+fn next_work_item_in_progress(world: &mut World) {
+    assert_eq!(world.work_plan_status, Some(RunStatus::Running));
+    let items = world.work_plan.as_ref().expect("work plan").items();
+    assert_eq!(items[0].status(), ItemStatus::Skipped);
+    assert_eq!(items[1].status(), ItemStatus::InProgress);
+}
+
+#[given("an approved inline automation suggestion")]
+fn approved_inline_suggestion(world: &mut World) {
+    let directory = tempfile::tempdir().expect("feedback directory");
+    fs::write(directory.path().join("file.txt"), "old\nsecond\n").expect("feedback fixture");
+    world.feedback_directory = Some(directory);
+}
+
+#[when("PiTools applies the suggestion")]
+fn applies_suggestion(world: &mut World) {
+    let directory = world
+        .feedback_directory
+        .as_ref()
+        .expect("feedback directory");
+    let outcome = repair_feedback(
+        directory.path(),
         &["automation-bot[bot]".into()],
         &Feedback {
-            actor_loZ[ˆ˜]]ÛX][Û‹X›İØ›İH‹š[Fò‚’À¢7F÷%÷G—S¢$&÷B"æ–çFò‚’À¢—5öWFöÖF–öã¢G'VRÀ¢&öG“¢&7VvvW7F–öåÆææWuÆæ"æ–Ñ¼ ¤°(€€€€€€€€€€€Á…Ñ èM½µ” ‰™¥±”¹ÑáĞˆ¹¥´o()),
+            actor_login: "automation-bot[bot]".into(),
+            actor_type: "Bot".into(),
+            is_automation: true,
+            body: "```suggestion\nnew\n```".into(),
+            path: Some("file.txt".into()),
             start_line: Some(1),
             line: Some(1),
         },
         RepairDecision::Apply,
     )
-    .expect("suYÙ\İ[Ûˆ\Y\ÈŠNÂˆÛÜ›™™YY˜XÚ×Ø\YYHİ]ÛÛYK™\ÜÜÚ][ÛˆOH™\Z\‘\ÜÜÚ][Û\YYÂˆÛÜ›™™YY˜XÚ×ØÛÛFVÑÌ€ô(€€€€€€€M½µ”¡™ÌèéÉ•…‘}Ñ½}ÍÑÉ¥¹œ¡‘¥É•Ñ½É.path().join("file.txt")).expect("read feedback fixture"));
+    .expect("suggestion applies");
+    world.feedback_applied = outcome.disposition == RepairDisposition::Applied;
+    world.feedback_contents =
+        Some(fs::read_to_string(directory.path().join("file.txt")).expect("read feedback fixture"));
 }
 
 #[then("only the suggested lines change")]
-fn only_sugY\İYÛ[™\×ØÚ[™ÙJÛÜ›ˆ	›]]ÛÜ›
-HÂˆ\ÜÙ\B‡v÷&ÆBæfVVF&6µöÆ–VB“°¢76W'EöW‡v÷&ÆBæfVVF&6µö6öçFVçG2æ5öFW&Vb‚’Â6öÖR‚&æWuÆÍ•½¹‘q¸ˆ¤¤ì)ô((m¥Ù•¸ ‰…¸…ÁÁ±¥•…ÕÑ½µ…Ñ¥½¸™••‘‰…¬½ÕÑ½µ”ˆ¥t)™¸…ÁÁ±¥•‘}™••‘‰…­}½ÕÑ½µ”¡İ½É±è€™µÕĞ]½É±¤ì(€€€İ½É±¹™••‘‰…­}½ÕÑ½µ”€ôM½µ” ‰…ÁÁ±¥•ˆ¹¥´o());
-    world.feedback_target = Some("review".imÊ
-JNÂŸB‚ˆÖÙÚ]™[Š˜H™Z™XİY]]ÛX][Ûˆ™YY˜XÚÈİ]ÛÛYHŠWB™›ˆ™Z™XİYÙ™YY˜XÚ×Ûİ]ÛÛYJÛÜ›ˆ	›]]ÛÜ›
-HÂˆÛÜ›™™YY˜XÚ×Ûİ]ÛÛYHHÛÛYJœ™Z™XİY‹š[Ê
-JNÂˆÛÜ›™™YY˜XÚ×İ\–WBÒ6öÖR‚'&Wf–Wr"æ–çFò‚’“°´((m¥Ù•¸ ‰…¸…ÁÁ±¥•¥ÍÍÕ”µ½µµ•¹Ğ…ÕÑ½µ…Ñ¥½¸™••‘‰…¬½ÕÑ½µ”ˆ¥t)™¸…ÁÁ±¥•‘}¥ÍÍÕ•}½µµ•¹Ñ}™••‘‰…­}½ÕÑ½µ”¡İ½É±è€™µÕĞ]½É±¤ì(€€€İ½É±¹™••‘‰…­}½ÕÑ½µ”€ôM½µ” ‰…ÁÁ±¥•ˆ¹¥´o());
+fn only_suggested_lines_change(world: &mut World) {
+    assert!(world.feedback_applied);
+    assert_eq!(world.feedback_contents.as_deref(), Some("new\nsecond\n"));
+}
+
+#[given("an applied automation feedback outcome")]
+fn applied_feedback_outcome(world: &mut World) {
+    world.feedback_outcome = Some("applied".into());
+    world.feedback_target = Some("review".into());
+}
+
+#[given("a rejected automation feedback outcome")]
+fn rejected_feedback_outcome(world: &mut World) {
+    world.feedback_outcome = Some("rejected".into());
+    world.feedback_target = Some("review".into());
+}
+
+#[given("an applied issue-comment automation feedback outcome")]
+fn applied_issue_comment_feedback_outcome(world: &mut World) {
+    world.feedback_outcome = Some("applied".into());
     world.feedback_target = Some("issue-comment".into());
 }
 
-#[Z]™[Š˜H™Z™XİY\ÜİYKXÛÛ[Y[]]ÛX][Ûˆ™YY˜XÚÈİ]ÛÛYHŠWB™›ˆ™Z™XİYÚ\ÜİYWØÛÛ[Y[Ù™YY˜XÚ×Ûİ]ÛÛYJÛÜ›ˆ	›]]ÛÜ›
-HÂˆÛÜ›™™YY˜XÚ×Ûİ]ÛÛYHHÛÛYJœ™Z™XİY‹š[Ê
-JNÂˆÛÜ›™™YY˜XÚ×İ\™Ù]HÛÛYJš\ÜİYKXÛÛ[Y[B"æ–çFò‚’“°´((mİ¡•¸ ‰A¥Q½½±ÌÉ•¹‘•ÉÌÑ¡”™••‘‰…¬½ÕÑ½µ”½µµ•´")]
-fn renders_feedback_outcome_commem
-ÛÜ›ˆ	›]]ÛÜ›
-HÂˆ]\–WBÒÖF6‚v÷&ÆBæfVVF&6µ÷F%•Ğ¹…Í}‘•É•˜ ¤ì(€€€€€€€M½µ” ‰¥ÍÍÕ”µ½µµ•¹Ğˆ¤€ôø••‘‰…­I•Á±åQ…Éet::PullRequestConversation,
-        Some( ™]šY]ÈŠHOˆ™YY˜XÚÔ™\U\–WC£¥&Wf–WuF‡&VBÀ¢÷F†W"Óâæ–2‚¹•áÁ•Ñ•™••‘‰…¬Ñ…É•Ğèí½Ñ¡•Èèıôˆ¤°(€€€ôì(€€€İ½É±¹™••‘‰…­}É•Á±ä€ôM½µ”¡µ…Ñ İ½É±¹™••‘‰…­}½ÕÑ½µ”¹…Í}‘•É•˜ ¤ì(€€€€€€€M½µ” ‰…ÁÁ±¥•ˆ¤€ôøÉ•¹‘•É}™••‘‰…­}É•Á±ä¡••‘‰…­I•Á±äèéÁÁ±¥•ì(€€€€€€€€€€€Ñ…Éet,
-            path: "src/lib,œÈ‹ˆÛÛ[Z]ˆŒLŒÍMÎXX˜ÙYˆ‹ˆJKˆÛÛYJœ™Z™XİYŠHOˆ™[™\—Ù™YY˜XÚ×Ü™\J™YY˜XÚÔ™\N”™Z™XİYÈ\–WBÒ’À¢÷F†W"Óâæ–2‚'VæW‡V7FVBfVVF&6²÷WF6öÖS¢¶÷F†W#£÷Ò"’À¢Ò“°´((mÑ¡•¸ ‰Ñ¡”½ÕÑ½µ”½µµ•¹ĞÍ…åÌÑ¡”ÍÕestion was applied and the thread is beinH™\ÛÛ™YŠWB™›ˆ\YYÙ™YY˜XÚ×ØÛÛ[Y[Ú\×Ü™\ÛÛ™Y
-ÛÜ›ˆ	›]]ÛÜ›
-HÂˆ]™\HHÛÜ›™™YY˜XÚ×Ü™\K˜\×Ù\™YŠ
-K™^Xİ
-™™YY˜XÚÈ™\HŠNÂˆ\ÜÙ\B‡&WÇ’æ6öÑ…¥¹Ì ‰…ÁÁ±¥•ˆ¤¤ì(€€€…ÍÍ•ÉĞ„¡É•Á±ä¹½¹Ñ…¥¹Ì ‰Ñ¡É•…¥Ì‰•¥¹ resolved"));
+#[given("a rejected issue-comment automation feedback outcome")]
+fn rejected_issue_comment_feedback_outcome(world: &mut World) {
+    world.feedback_outcome = Some("rejected".into());
+    world.feedback_target = Some("issue-comment".into());
 }
 
-#[then(!Hİ]ÛÛYHÛÛ[Y[B6—2F†R7U•ÍÑ¥½¸İ…ÌÉ•©•Ñ•…¹¡Õµ…¸™½±±½ÜµÕÀ¥ÌÉ•ÅÕ¥É•ˆ¥t)™¸É•©•Ñ•‘}™••‘‰…­}½µµ•¹Ñ}É•ÅÕ¥É•Í}¡Õµ…¹}™½±±½İ}ÕÀ¡İ½É±è€™µÕĞ]½É±¤ì(€€€±•ĞÉ•Á±ä€ôİ½É±¹™••‘‰…­}É•Á±ä¹…Í}‘•É•˜ ¤¹•áÁ•Ğ ‰™••‘‰…¬É•Á±äˆ¤ì(€€€…ÍÍ•Ä!(reply.comZ[œÊœ™Z™XİYŠJNÂˆ\ÜÙ\J™\K˜ÛÛZ[2‚&‡VÖâföÆÆ÷r×W&VÖ–ç2&WV—&VB"’“°¢76W'B‡&WÇ’æ6öçF–ç2‚'F‡&VB—2&V–äÉ•Í½±Ù•ˆ¤¤ì)ô((mÑ¡•¸ „he issue-comment outcome explailÈ]›È™]šY]È™XY\È]˜Z[X›HŠWB™›ˆ\ÜİYWØÛÛ[Y[Ø\YYÛİ]ÛÛYWÚ\×Û›×İ™XYØÛZ[JÛÜ›ˆ	›]]ÛÜ›
-HÂˆ]™\HHÛÜ›™™YY˜XÚ×Ü™\K˜\×Ù\™YŠ
-K™^Xİ
-™™YY˜XÚÈ™\HŠNÂˆ\ÜÙ\J™\K˜ÛÛZ[2‚%"ÖÆWfVÂ÷WF6öÖR6öÖÖVçB&V6÷&G2F†R&W7VÇB"’“°¢76W„¡É•Á±ä¹½´ains("no review thread is available to resolve"));
+#[when("PiTools renders the feedback outcome comment")]
+fn renders_feedback_outcome_comment(world: &mut World) {
+    let target = match world.feedback_target.as_deref() {
+        Some("issue-comment") => FeedbackReplyTarget::PullRequestConversation,
+        Some("review") => FeedbackReplyTarget::ReviewThread,
+        other => panic!("unexpected feedback target: {other:?}"),
+    };
+    world.feedback_reply = Some(match world.feedback_outcome.as_deref() {
+        Some("applied") => render_feedback_reply(FeedbackReply::Applied {
+            target,
+            path: "src/lib.rs",
+            commit: "0123456789abcdef",
+        }),
+        Some("rejected") => render_feedback_reply(FeedbackReply::Rejected { target }),
+        other => panic!("unexpected feedback outcome: {other:?}"),
+    });
+}
+
+#[then("the outcome comment says the suggestion was applied and the thread is being resolved")]
+fn applied_feedback_comment_is_resolved(world: &mut World) {
+    let reply = world.feedback_reply.as_deref().expect("feedback reply");
+    assert!(reply.contains("applied"));
+    assert!(reply.contains("thread is being resolved"));
+}
+
+#[then("the outcome comment says the suggestion was rejected and human follow-up is required")]
+fn rejected_feedback_comment_requires_human_follow_up(world: &mut World) {
+    let reply = world.feedback_reply.as_deref().expect("feedback reply");
+    assert!(reply.contains("rejected"));
+    assert!(reply.contains("human follow-up remains required"));
+    assert!(reply.contains("thread is being resolved"));
+}
+
+#[then("the issue-comment outcome explains that no review thread is available")]
+fn issue_comment_applied_outcome_has_no_thread_claim(world: &mut World) {
+    let reply = world.feedback_reply.as_deref().expect("feedback reply");
+    assert!(reply.contains("PR-level outcome comment records the result"));
+    assert!(reply.contains("no review thread is available to resolve"));
 }
 
 #[then(
-    "the issue-commemİ]ÛÛYHØ^\ÈHİYÖW7F–öâv2&V¦V7FVBv—F†÷WB6Æ–Ö–äÑ¡É•…É•Í½±ÕÑ¥½¸ˆ(¥t)™¸¥ÍÍÕ•}½µµ•¹Ñ}É•©•Ñ•‘}½ÕÑ½µ•}¡…Í}¹½}Ñ¡É•…‘}±…¥´¡İ½É±è€™µÕĞ]½É±¤ì(€€€±•ĞÉ•Á±ä€ôİ½É±¹™••‘‰…­}É•Á±ä¹…Í}‘•É•˜ ¤¹•áÁ•Ğ ‰™••‘‰…¬É•Á±äˆ¤ì(€€€…ÍÍ•Ä!(reply.comZ[œÊœ™Z™XİYŠJNÂˆ\ÜÙ\J™\K˜ÛÛZ[2‚&æò&Wf–WrF‡&VB—2f–Æ&ÆRFò&W6öÇfR"’“°¢76W„ …É•Á±ä¹½¹Ñ…¥¹Ì ‰Ñ¡É•…¥Ì‰•¥¹ resolved"));
+    "the issue-comment outcome says the suggestion was rejected without claiming thread resolution"
+)]
+fn issue_comment_rejected_outcome_has_no_thread_claim(world: &mut World) {
+    let reply = world.feedback_reply.as_deref().expect("feedback reply");
+    assert!(reply.contains("rejected"));
+    assert!(reply.contains("no review thread is available to resolve"));
+    assert!(!reply.contains("thread is being resolved"));
 }
 
-#[given("an ulØY™HÚ]Xˆ\X[šY™\İÛÛ™\œÚ[ÛˆÛÙHŠWB™›ˆ[œØY™WÛX[šY™\İØÛÙJÛÜ›ˆ	›]]ÛÜ›
-HÂˆÛÜ››X[šY™\İØÛÙWÜ™Z™XİYH˜[Y]WÛX[šY™\İØÛÙJ‹‹‹ØÛÛ™\œÚ[ÛˆŠKš\×Ù\œŠ
-NÂĞ ¢5·v†Vâ‚%•FööÇ2fÆ–FFW2F†RÖæ–fW7B6öÙ•Ãion code")]
+#[given("an unsafe GitHub App manifest conversion code")]
+fn unsafe_manifest_code(world: &mut World) {
+    world.manifest_code_rejected = validate_manifest_code("../conversion").is_err();
+}
+
+#[when("PiTools validates the manifest conversion code")]
 fn validates_manifest_code(_world: &mut World) {}
 
-#[then(!HX[šY™\İÛÛ™\œÚ[Ûˆ\È™Z™XİY™Y›Ü™H[’æWGv÷&²&WVW7B"•Ğ¦fâÖæ–fW7Eö6öFUö—5÷&V¦V7FVB‡v÷&ÆC¢f×WBv÷&ÆB’°¢76W'B‡v÷&ÆBæÖæ–fW7Eö6öFU÷&V¦V7FVB“°´((mÑ½­¥¼èäest]
+#[then("the manifest conversion is rejected before any network request")]
+fn manifest_code_is_rejected(world: &mut World) {
+    assert!(world.manifest_code_rejected);
+}
+
+#[tokio::test]
 async fn gherkin_features_are_executable() {
     World::cucumber()
         .fail_on_skipped()
-        .run(!\İËÙ™X]\™\ÈŠBˆ˜]ØZ]ÂĞ
+        .run("tests/features")
+        .await;
+}

@@ -1,19 +1,69 @@
-import test d›ÛH››ÙN\ÝŽÂš[\Ü\ÜÙ\œ›ÛH››ÙN˜\ÜÙ\ÜÝšXÝŽÂ‚š[\ÜÈ“ÕÐÓÓÕ‘T”ÒSÓˆHœ›ÛH‹‹‹ÜÜ˜ËÜ›ÝØÛÛšœÈŽÂš[\ÜÂˆXYÛ›ÜÚ\ÓÛ›TTVçF–ÖRÀ¢W†V7WFU”¦ö"À¢G—R•'VÑ¥µ•‘…ÁÑ•È°)ô™É½´€ˆ¸¸½ÍÉŒ½Á¤µÉÕ¹Ñ¥µ”¹©Ìˆì()½³t request = {
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import { PROTOCOL_VERSION } from "../src/protocol.js";
+import {
+  DiagnosisOnlyPiRuntime,
+  executePiJob,
+  type PiRuntimeAdapter,
+} from "../src/pi-runtime.js";
+
+const request = {
   protocolVersion: PROTOCOL_VERSION,
   jobId: "job-1",
-  repositorNˆ™^[\KÜ™\È‹ˆÛ˜\ÚÝ]ˆ6æ6†÷Bæ§6öâ"À¢ÆÆ÷vVEF‡3¢²'7&2öÖ–âçG2%ÒÀ¢f–ÇW&TWf–FVæ6S¢&çÒFW7Bf–ÆVB"À¢öÆ–7•&Wf—6–öã¢'6†#Sc§öÆ–7’"À¢æöæ6S¢&æöæ6RÓ"À§Ó° §FW7B‚&W†V7WFW2F‡&÷U …¸¥¹©•Ñ•ÉÕ¹Ñ¥µ”Ý¥Ñ¡½ÕÐÁÉ½Ù¥‘•ÈÉ•‘•¹Ñ¥…±Ìˆ°…Íå¹Œ€ ¤€ôøì(€½¹ÍÐÅntime: PiRuntimeAdapter = {
+  repository: "example/repo",
+  snapshotPath: "snapshot.json",
+  allowedPaths: ["src/main.ts"],
+  failureEvidence: "npm test failed",
+  policyRevision: "sha256:policy",
+  nonce: "nonce-1",
+};
+
+test("executes through an injected runtime without provider credentials", async () => {
+  const runtime: PiRuntimeAdapter = {
     execute: async (boundRequest) => ({
-      protocolVersion: boundRequest,›ÝØÛÛ™\œÚ[Û‹ˆ›Ø’Yˆ›Ý[™™\]Y\Ýš›Ø’Yˆ›Û˜ÙNˆ›Ý[™™\]Y\Ý››Û˜ÙKˆXYÛ›ÜÚ\Îˆ™]\›Z[š\ÝXÈXVæ÷6—2"À¢6öæf–FVæ6S¢ãRÀ¢&÷÷6VDf–ÆW3¢²'7&2öÖ–âçG2%ÒÀ¢fÆ–FF–öä6öÖÖæG3¢²&çÒFW7B%ÒÀ¢&—6·3¢µÒÀ¢&WV—&W4&÷fÃ¢G'VRÀ¢Ò’À¢Ó° ¢6öÍÐÉ•ÍÕ±Ð€ô…Ý…¥Ð•á•ÕÑ•A¥)½ˆ¡É•ÅÕ•ÍÐ°ÉÕ¹Ñ¥µ”¤ì((€…ÍÍ•ÉÐ¹•ÅÕ…°¡É•ÍÕ±Ð¹‘¥…nosis, "deterministic diagnosis");
+      protocolVersion: boundRequest.protocolVersion,
+      jobId: boundRequest.jobId,
+      nonce: boundRequest.nonce,
+      diagnosis: "deterministic diagnosis",
+      confidence: 0.5,
+      proposedFiles: ["src/main.ts"],
+      validationCommands: ["npm test"],
+      risks: [],
+      requiresApproval: true,
+    }),
+  };
+
+  const result = await executePiJob(request, runtime);
+
+  assert.equal(result.diagnosis, "deterministic diagnosis");
 });
-	\Ý
-fÆ–FFW2F†R¹Ñ¥µ”É•ÍÕ±Ð……¥¹ÍÐÑ¡”•á…ÐÉ•ÅÕ•ÍÐˆ°…Íå¹Œ€ ¤€ôøì(€½¹ÍÐÉÕ¹Ñ¥µ”èA¥IÕ´imeAdapter = {
+
+test("validates the runtime result against the exact request", async () => {
+  const runtime: PiRuntimeAdapter = {
     execute: async () => ({
       protocolVersion: PROTOCOL_VERSION,
       jobId: "different-job",
       nonce: "nonce-1",
-      dia[›ÜÚ\ÎˆÜ›Û™È›Øˆ‹ˆÛÛ™šY[˜ÙNˆKˆ›ÜÜÙYš[\Îˆ×Kˆ˜[Y][ÛÛÛ[X[™Îˆ×Kˆš\ÚÜÎˆ×Kˆ™\]Z\™\Ð\›Ý˜[ˆYKˆJKˆNÂ‚ˆ]ØZ]\ÜÙ\Bç&V¦V7G2‚‚’ÓâW†V7WFU”¦ö"‡&WVW7BÂ¹Ñ¥µ”¤°€½¹½Ð‰½Õ¹Ñ¼Ñ¡”É•ÅÕ•ÍÐ¼¤ì)ô¤ì()Ñ•ÍÐ ‰‘¥…nosis-only runtime is deterministic and proposes no mutation", async () => {
-  colÝ[F–ÖRÒæWrF–væ÷6—4öæÇ••¹Ñ¥µ” ¤ì((€½¹ÍÐ™¥ÉÍÐ€ô…Ý…¥Ð•á•ÕÑ•A¥)½ˆ¡É•ÅÕ•ÍÐ°ÉÕ¹Ñ¥µ”¤ì(€½¹ÍÐÍ•½¹€ô…Ý…¥Ð•á•ÕÑ•A¥)½ˆ¡É•ÅÕ•ÍÐ°Åntime);
+      diagnosis: "wrong job",
+      confidence: 0.5,
+      proposedFiles: [],
+      validationCommands: [],
+      risks: [],
+      requiresApproval: true,
+    }),
+  };
+
+  await assert.rejects(() => executePiJob(request, runtime), /not bound to the request/);
+});
+
+test("diagnosis-only runtime is deterministic and proposes no mutation", async () => {
+  const runtime = new DiagnosisOnlyPiRuntime();
+
+  const first = await executePiJob(request, runtime);
+  const second = await executePiJob(request, runtime);
 
   assert.deepEqual(first, second);
   assert.deepEqual(first.proposedFiles, []);
-  assert.equal(fipÝ&WV—&W4&÷fÂÂG'VR“°§Ò“°
+  assert.equal(first.requiresApproval, true);
+});
