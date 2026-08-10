@@ -1,0 +1,9 @@
+/target/
+/\.cache/
+/workers/pi/node_modules/
+/workers/pi/dist/
+.env
+.env.*
+!.env.example
+.DS_Store
+.superpowers/
