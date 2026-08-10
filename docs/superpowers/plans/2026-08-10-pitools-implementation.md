@@ -24,7 +24,12 @@
 
 The initial implementation is present and validated through the local changed-scope gate. Delivered slices include the Rust control plane, GitHub App manifest/webhook handling, durable watchlist and job leases, living work-plan comments with approve/skip/cancel Check Run controls (including approval-wait skips/cancellations), deterministic feedback repair, typed approval-gated CI patch application, safe stack planning/base updates, the Pi sidecar protocol, container/Helm packaging, and the dev01 handoff.
 
-The remaining release prerequisites are external or intentionally fail-closed: GitHub credentials and authenticated UAT, remote/commit/publication authority, dev01/Flux rollout, provider-backed Pi execution, and fork-head write scope. Bounded Actions job-log and check-run annotation evidence is delivered; low-cardinality Prometheus metrics are delivered. Deterministic feedback now records applied or rejected outcomes on the originating review comment before resolution, or in a PR-level outcome comment for issue comments, and persists rejection state so failed suggestions are not retried forever. The task checkboxes below are the original design checklist; this status and `CONTEXT.md` are the current delivery record.
+The remaining release prerequisites are external or intentionally fail-closed: GitHub credentials and authenticated UAT, remote/commit/publication authority, dev01/Flux rollout, provider-backed Pi execution, and fork-head write scope. Bounded Actions job-log and check-run annotation evidence is delivered; low-cardinality Prometheus metrics are delivered. Deterministic feedback now records applied or rejected outcomes on the originating review comment before resolution, or in a PR-level outcome comment for issue comments, and persists rejection state so failed suggestions are not retried forever. The task checkboxes below are retained as the original design checklist; the evidence-based status here and `CONTEXT.md` are authoritative, and the unchecked items do not by themselves indicate missing implementation.
+
+### Evidence-based completion audit
+
+- Tasks 1-10: source implementation, executable BDD coverage, focused tests, packaging, and the dev01/Flux handoff are complete and validated. Provider-backed execution, release publication, and dev01 runtime acceptance remain intentionally external gates.
+- Task 11: local `make check`, local Compose acceptance, exact-head hosted source/image validation, documentation synchronization, and the residual-prerequisite record are complete. Post-merge `make check-full`/`make quality-gates`, human merge, release tagging, App installation, deployment, and authenticated UAT remain owner-gated.
 
 ---
 
