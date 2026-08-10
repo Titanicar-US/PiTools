@@ -1,6 +1,6 @@
 # PiTools active repository state
 
-- Repository: [`Titanicar-US/PiTools`](https://github.com/Titanicar-US/PiTools); the public repository and draft PR [#1](https://github.com/Titanicar-US/PiTools/pull/1) are published. The PR head is `codex/bootstrap` at `8173bbf01a38e104333c3c42ff8136ba1efcfe8b`.
+- Repository: [`Titanicar-US/PiTools`](https://github.com/Titanicar-US/PiTools); the public repository and draft PR [#1](https://github.com/Titanicar-US/PiTools/pull/1) are published. The PR head branch is `codex/bootstrap`; the PR records its current commit SHA.
 - The Rust control plane owns GitHub authentication, durable PostgreSQL jobs, reconciliation, readiness, comments, Check Run controls, deterministic feedback mutation, typed CI patch validation/application, validation, and branch pushes.
 - The TypeScript Pi worker runs separately over the bounded `pitools.pi.requests` NATS request/reply subject. It receives no GitHub App credentials and defaults to diagnosis-only output.
 - Local deployment uses PostgreSQL, NATS, the HTTP server, a Rust worker, and an optional long-lived Pi worker. Helm values intentionally require external secrets and immutable image digests.
@@ -17,7 +17,7 @@
 ## Current validation evidence
 
 - `make check` passed after the last implementation edit on 2026-08-10: `cargo fmt --all -- --check`, Clippy with warnings denied, the locked Rust test suite, the 14 BDD scenarios (14 passed, 41 steps passed), and the Pi worker check (16 tests passed). Waiting-approval Skip/Cancel behavior also passed the focused PR-control and PostgreSQL queue contracts.
-- GitHub Actions PR check `31362253112` passed in 3m35s for the published head after updating checkout/setup-node to Node 24-compatible pinned releases; the final run reported no deprecation annotation.
+- GitHub Actions PR check `31362529440` passed in 3m40s for the documentation-synchronized head after updating checkout/setup-node to Node 24-compatible pinned releases; the run reported no deprecation annotation.
 - Helm security rendering, local Compose validation with dummy non-production variables, the non-root core image build (`sha256:98a160382142b3ff3d9c79861ccc8d267ab85fb3c84132f17857fe3bf0c291`), and the corrected pinned-NATS request/reply smoke have passed. The core image reports `pitools 0.1.0`; the runner returns request-bound diagnosis-only JSON when no provider workflow is selected.
 - The runner dependency audit reports 3 upstream transitive npm advisories (1 moderate, 2 high, 0 critical) that the dependency advisor did not authorize an override for; this remains a release review item.
 
