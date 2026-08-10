@@ -7,15 +7,15 @@ image_workflow="${repo_root}/.github/workflows/build-image.yml"
 temporary_root="$(mktemp -d)"
 trap 'rm -rf "${temporary_root}"' EXIT
 
-if ! rg -Fq "    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')" "${image_workflow}"; then
+if ! grep -Fq -- "    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')" "${image_workflow}"; then
   echo "image publication must run only for v-prefixed tags" >&2
   exit 1
 fi
-if ! rg -Fq '          RELEASE_TAG: ${{ github.ref_name }}' "${image_workflow}"; then
+if ! grep -Fq -- '          RELEASE_TAG: ${{ github.ref_name }}' "${image_workflow}"; then
   echo "image publication must validate the release tag" >&2
   exit 1
 fi
-if ! rg -Fq '          [[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]' "${image_workflow}"; then
+if ! grep -Fq -- '          [[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]' "${image_workflow}"; then
   echo "image publication must require an exact semantic release tag" >&2
   exit 1
 fi
