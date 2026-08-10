@@ -2,6 +2,7 @@
 
 - Repository: [`Titanicar-US/PiTools`](https://github.com/Titanicar-US/PiTools); the public repository and draft PR [#1](https://github.com/Titanicar-US/PiTools/pull/1) are published. The PR head branch is `codex/bootstrap`; the PR records its current commit SHA.
 - The Rust control plane owns GitHub authentication, durable PostgreSQL jobs, reconciliation, readiness, comments, Check Run controls, deterministic feedback mutation, typed CI patch validation/application, validation, branch pushes, and bounded operator API/CLI inspection.
+- The production router exposes the verified webhook receiver only with application state; the unconfigured utility router no longer advertises a placeholder webhook endpoint.
 - The TypeScript Pi worker runs separately over the bounded `pitools.pi.requests` NATS request/reply subject. It receives no GitHub App credentials and defaults to diagnosis-only output.
 - Local deployment uses PostgreSQL, NATS, the HTTP server, a Rust worker, and an optional long-lived Pi worker. Helm values intentionally require external secrets and immutable image digests.
 - The GitHub App Manifest callback exchanges the one-time GitHub code and returns credentials with `no-store`; PiTools does not persist them.

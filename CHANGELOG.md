@@ -20,3 +20,4 @@
 - Added an immediate remote-head lease check before approved feedback and CI repair pushes, rejecting branch movement after validation.
 - Gated immutable image publication to exact `vMAJOR.MINOR.PATCH` tag refs, including manual workflow dispatches.
 - Updated pinned GitHub Actions to current Node 24-compatible major releases after hosted CI reported the Node 20 deprecation warning.
+- Removed the dead unconfigured-router webhook placeholder so webhook intake is exposed only through the stateful verified receiver.

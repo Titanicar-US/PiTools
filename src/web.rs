@@ -13,7 +13,6 @@ pub fn router() -> Router {
     Router::new()
         .route("/healthz", get(health))
         .route("/readyz", get(ready))
-        .route("/github/webhook", axum::routing::post(webhook_placeholder))
         .route("/github/manifest/callback", get(manifest_callback))
 }
 
@@ -94,13 +93,6 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
             HeaderValue::from_static("text/plain; version=0.0.4; charset=utf-8"),
         )],
         state.metrics.render_prometheus(),
-    )
-}
-
-async fn webhook_placeholder() -> impl IntoResponse {
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        "webhook intake is not configured",
     )
 }
 

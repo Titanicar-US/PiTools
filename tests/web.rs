@@ -47,7 +47,7 @@ async fn readiness_rejects_when_nats_is_not_connected() {
 }
 
 #[tokio::test]
-async fn webhook_is_not_mutating_before_verification_is_implemented() {
+async fn unconfigured_router_does_not_expose_a_webhook_route() {
     let response = web::router()
         .oneshot(
             Request::builder()
@@ -59,7 +59,7 @@ async fn webhook_is_not_mutating_before_verification_is_implemented() {
         .await
         .expect("response");
 
-    assert_eq!(response.status(), 501);
+    assert_eq!(response.status(), 404);
 }
 
 #[tokio::test]
