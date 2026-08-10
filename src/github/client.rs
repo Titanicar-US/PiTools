@@ -724,7 +724,7 @@ pub struct CheckRunUpdate {
     pub details_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<CheckRunOutput>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub actions: Vec<CheckRunAction>,
 }
 

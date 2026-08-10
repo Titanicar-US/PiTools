@@ -11,7 +11,7 @@ use pitools::{
     github::manifest::{AppManifest, validate_manifest_code},
     github::{
         auth::GitHubAppStatus,
-        client::actions_job_id_from_details_url,
+        client::{CheckRunUpdate, actions_job_id_from_details_url},
         events::{AccessLifecycle, DeliveryEnvelope},
     },
     models::{
@@ -65,6 +65,7 @@ struct World {
     readiness_policy: Option<Policy>,
     readiness_snapshot: Option<ReadinessSnapshot>,
     notification_body: Option<String>,
+    check_run_update: Option<serde_json::Value>,
     github_app_status: Option<GitHubAppStatus>,
     control_context: Option<(DeliveryEnvelope, ControlContext)>,
     control_context_rejected: bool,
@@ -186,6 +187,33 @@ fn work_plan_comment_exposes_plan_and_controls(world: &mut World) {
     assert!(body.contains("skip the current item"));
     assert!(body.contains("cancel the run"));
     assert!(body.contains("Approval fingerprint: `sha256:"));
+}
+
+#[given("a completed PiTools Check Run update")]
+fn completed_check_run_update(world: &mut World) {
+    world.check_run_update = Some(
+        serde_json::to_value(CheckRunUpdate {
+            name: None,
+            status: Some("completed".into()),
+            conclusion: Some("success".into()),
+            details_url: None,
+            output: None,
+            actions: Vec::new(),
+        })
+        .expect("serialize completed Check Run update"),
+    );
+}
+
+#[when("PiTools serializes the completed Check Run update")]
+fn serializes_completed_check_run_update(_world: &mut World) {}
+
+#[then("the completed Check Run update clears its action buttons")]
+fn completed_check_run_update_clears_actions(world: &mut World) {
+    let update = world
+        .check_run_update
+        .as_ref()
+        .expect("completed Check Run update");
+    assert_eq!(update["actions"], json!([]));
 }
 
 #[given("a PiTools run has completed with changes and validation")]

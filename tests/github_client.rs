@@ -1,6 +1,6 @@
 use pitools::github::{
     auth::InstallationToken,
-    client::{GitHubClient, GitHubClientError, actions_job_id_from_details_url},
+    client::{CheckRunUpdate, GitHubClient, GitHubClientError, actions_job_id_from_details_url},
 };
 use secrecy::SecretString;
 use serde_json::json;
@@ -269,6 +269,44 @@ async fn rejects_off_origin_pagination_without_forwarding_authorization() {
             .expect("request log")
             .is_empty()
     );
+}
+
+#[tokio::test]
+async fn check_run_completion_serializes_empty_actions_to_remove_controls() {
+    let server = MockServer::start().await;
+    Mock::given(method("PATCH"))
+        .and(path("/repos/acme/widgets/check-runs/81"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": 81,
+            "html_url": "https://github.com/acme/widgets/runs/81"
+        })))
+        .mount(&server)
+        .await;
+
+    client(&server)
+        .update_check_run(
+            "acme",
+            "widgets",
+            81,
+            &CheckRunUpdate {
+                name: None,
+                status: Some("completed".into()),
+                conclusion: Some("success".into()),
+                details_url: None,
+                output: None,
+                actions: Vec::new(),
+            },
+        )
+        .await
+        .expect("completed Check Run update succeeds");
+
+    let requests = server
+        .received_requests()
+        .await
+        .expect("request log is available");
+    let body: serde_json::Value =
+        serde_json::from_slice(&requests[0].body).expect("Check Run update body is JSON");
+    assert_eq!(body["actions"], json!([]));
 }
 
 #[tokio::test]

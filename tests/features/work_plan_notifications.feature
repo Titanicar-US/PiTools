@@ -10,3 +10,8 @@ Feature: pull request work-plan notifications
     Given a PiTools run has completed with changes and validation
     When PiTools renders the final summary comment
     Then the final summary lists changes, validation, and remaining blockers
+
+  Scenario: completed work clears Check Run controls
+    Given a completed PiTools Check Run update
+    When PiTools serializes the completed Check Run update
+    Then the completed Check Run update clears its action buttons
