@@ -32,3 +32,4 @@
 - Added per-PR jobs, audit entries, and delivery history to the operator API/CLI, plus broader CI/Pi redaction for GitHub, cloud, package, JWT, PEM, and assignment-shaped secrets.
 - Hardened repair workspaces with credential-free validation snapshots, safe Git config environment, and staged mode/rename/copy rejection.
 - Fixed the operator watchlist query to qualify joined timestamp columns and added Postgres and BDD regression coverage for active watched pull requests.
+- Made `pitools doctor` validate the GitHub App identity and report visible installations before deployment UAT.

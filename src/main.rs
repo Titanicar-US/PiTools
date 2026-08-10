@@ -183,7 +183,7 @@ async fn main() -> Result<()> {
         }
         Command::Doctor => {
             let config = AppConfig::from_env()?;
-            GitHubAppAuth::new(
+            let github_auth = GitHubAppAuth::new(
                 config.github_app_id,
                 config.github_private_key.clone(),
                 Url::parse("https://api.github.com/")?,
@@ -198,9 +198,11 @@ async fn main() -> Result<()> {
                     "degraded"
                 }
             };
+            let github_status = github_auth.app_status().await?;
             println!(
-                "configuration ok: bind_address={}, database=ok, github_key=ok, nats={nats_status}",
-                config.bind_address
+                "configuration ok: bind_address={}, database=ok, github_key=ok, nats={nats_status}, {}",
+                config.bind_address,
+                github_status.render()
             );
         }
         Command::Reconcile {

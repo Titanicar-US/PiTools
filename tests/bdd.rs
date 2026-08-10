@@ -10,6 +10,7 @@ use pitools::{
     },
     github::manifest::{AppManifest, validate_manifest_code},
     github::{
+        auth::GitHubAppStatus,
         client::actions_job_id_from_details_url,
         events::{AccessLifecycle, DeliveryEnvelope},
     },
@@ -61,6 +62,36 @@ struct World {
     readiness_policy: Option<Policy>,
     readiness_snapshot: Option<ReadinessSnapshot>,
     notification_body: Option<String>,
+    github_app_status: Option<GitHubAppStatus>,
+}
+
+#[given("a GitHub App is authenticated with one selected installation")]
+fn authenticated_github_app(world: &mut World) {
+    world.github_app_status = Some(GitHubAppStatus::new(
+        42,
+        "PiTools",
+        vec!["Titanicar-US".into()],
+    ));
+}
+
+#[when("the doctor renders GitHub App status")]
+fn renders_github_app_status(world: &mut World) {
+    world.notification_body = Some(
+        world
+            .github_app_status
+            .as_ref()
+            .expect("GitHub App status")
+            .render(),
+    );
+}
+
+#[then("the doctor reports the App identity and installation count")]
+fn reports_github_app_status(world: &mut World) {
+    let body = world.notification_body.as_deref().expect("doctor output");
+    assert!(body.contains("github_app_id=42"));
+    assert!(body.contains("github_app_name=PiTools"));
+    assert!(body.contains("installations=1"));
+    assert!(body.contains("Titanicar-US"));
 }
 
 #[given("a PiTools work plan is about to start")]

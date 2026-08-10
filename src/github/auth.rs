@@ -4,7 +4,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use reqwest::StatusCode;
 use secrecy::{ExposeSecret, SecretString};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use url::Url;
 
 #[derive(Clone)]
@@ -77,6 +77,78 @@ impl GitHubAppAuth {
 
     pub fn api_base(&self) -> Url {
         self.api_base.clone()
+    }
+
+    /// Validate the configured App identity and report visible installations.
+    ///
+    /// This is intentionally an App-authenticated probe rather than an
+    /// installation-token probe: it detects a wrong App ID/key pair and gives
+    /// operators evidence that the App is installed somewhere before they
+    /// troubleshoot repository-level webhook behavior.
+    pub async fn app_status(&self) -> Result<GitHubAppStatus, GitHubAuthError> {
+        let jwt = self.app_jwt(SystemTime::now())?;
+        self.app_status_with_jwt(&jwt).await
+    }
+
+    async fn app_status_with_jwt(
+        &self,
+        jwt: &SecretString,
+    ) -> Result<GitHubAppStatus, GitHubAuthError> {
+        let identity: AppIdentityResponse = self.app_get("app", jwt).await?;
+        if identity.id != self.app_id {
+            return Err(GitHubAuthError::AppIdentityMismatch {
+                configured: self.app_id,
+                reported: identity.id,
+            });
+        }
+        let installations: Vec<AppInstallationResponse> = self
+            .app_get("app/installations?per_page=100&page=1", jwt)
+            .await?;
+        let installation_count = installations.len();
+        let installation_accounts: Vec<String> = installations
+            .into_iter()
+            .filter_map(|installation| installation.account?.login)
+            .collect();
+        Ok(GitHubAppStatus {
+            app_id: identity.id,
+            app_name: identity.name,
+            installation_count,
+            installation_accounts,
+        })
+    }
+
+    async fn app_get<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        jwt: &SecretString,
+    ) -> Result<T, GitHubAuthError> {
+        let url = self
+            .api_base
+            .join(path)
+            .map_err(|error| GitHubAuthError::Client(error.to_string()))?;
+        let response = self
+            .client
+            .get(url)
+            .bearer_auth(jwt.expose_secret())
+            .header("accept", "application/vnd.github+json")
+            .header("x-github-api-version", "2022-11-28")
+            .send()
+            .await
+            .map_err(|error| GitHubAuthError::Request(error.to_string()))?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(GitHubAuthError::Api {
+                status: status.as_u16(),
+                body: response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "unreadable response".into()),
+            });
+        }
+        response
+            .json::<T>()
+            .await
+            .map_err(|error| GitHubAuthError::Response(error.to_string()))
     }
 
     pub async fn installation_token_with_scope(
@@ -155,6 +227,58 @@ pub struct InstallationToken {
     pub repository_selection: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitHubAppStatus {
+    pub app_id: u64,
+    pub app_name: String,
+    pub installation_count: usize,
+    pub installation_accounts: Vec<String>,
+}
+
+impl GitHubAppStatus {
+    pub fn new(
+        app_id: u64,
+        app_name: impl Into<String>,
+        installation_accounts: Vec<String>,
+    ) -> Self {
+        let installation_count = installation_accounts.len();
+        Self {
+            app_id,
+            app_name: app_name.into(),
+            installation_count,
+            installation_accounts,
+        }
+    }
+
+    pub fn render(&self) -> String {
+        let accounts = if self.installation_accounts.is_empty() {
+            "none".to_owned()
+        } else {
+            self.installation_accounts.join(",")
+        };
+        format!(
+            "github_app_id={} github_app_name={} installations={} installation_accounts={accounts}",
+            self.app_id, self.app_name, self.installation_count
+        )
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct AppIdentityResponse {
+    id: u64,
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct AppInstallationResponse {
+    account: Option<AppInstallationAccount>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AppInstallationAccount {
+    login: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 struct InstallationTokenResponse {
     token: String,
@@ -179,4 +303,93 @@ pub enum GitHubAuthError {
     Response(String),
     #[error("GitHub returned HTTP {status}: {body}")]
     Api { status: u16, body: String },
+    #[error("configured GitHub App ID {configured} did not match API identity {reported}")]
+    AppIdentityMismatch { configured: u64, reported: u64 },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{header, method, path, query_param},
+    };
+
+    #[tokio::test]
+    async fn app_status_validates_identity_and_lists_installations() {
+        let server = MockServer::start().await;
+        let authenticated_get = || {
+            Mock::given(method("GET"))
+                .and(header("authorization", "Bearer test-app-jwt"))
+                .and(header("x-github-api-version", "2022-11-28"))
+        };
+        authenticated_get()
+            .and(path("/app"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": 42,
+                "name": "PiTools",
+                "slug": "pitools"
+            })))
+            .mount(&server)
+            .await;
+        authenticated_get()
+            .and(path("/app/installations"))
+            .and(query_param("per_page", "100"))
+            .and(query_param("page", "1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"id": 7, "account": {"login": "Titanicar-US", "type": "Organization"}},
+                {"id": 8}
+            ])))
+            .mount(&server)
+            .await;
+
+        let auth = GitHubAppAuth {
+            app_id: 42,
+            private_key_pem: SecretString::from("test-only-key"),
+            client: reqwest::Client::new(),
+            api_base: Url::parse(&format!("{}/", server.uri())).expect("mock URL is valid"),
+        };
+        let status = auth
+            .app_status_with_jwt(&SecretString::from("test-app-jwt"))
+            .await
+            .expect("app status succeeds");
+
+        assert_eq!(status.app_id, 42);
+        assert_eq!(status.app_name, "PiTools");
+        assert_eq!(status.installation_count, 2);
+        assert_eq!(status.installation_accounts, vec!["Titanicar-US"]);
+        assert!(status.render().contains("installations=2"));
+    }
+
+    #[tokio::test]
+    async fn app_status_rejects_a_mismatched_app_identity_before_listing_installations() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/app"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": 99,
+                "name": "Another App"
+            })))
+            .mount(&server)
+            .await;
+        let auth = GitHubAppAuth {
+            app_id: 42,
+            private_key_pem: SecretString::from("test-only-key"),
+            client: reqwest::Client::new(),
+            api_base: Url::parse(&format!("{}/", server.uri())).expect("mock URL is valid"),
+        };
+
+        let error = auth
+            .app_status_with_jwt(&SecretString::from("test-app-jwt"))
+            .await
+            .expect_err("mismatched App identity must fail closed");
+        assert!(matches!(
+            error,
+            GitHubAuthError::AppIdentityMismatch {
+                configured: 42,
+                reported: 99
+            }
+        ));
+    }
 }
