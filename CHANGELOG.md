@@ -10,3 +10,4 @@
 - Kept Skip and Cancel available during approval waits without implicitly authorizing the remaining plan.
 - Added bounded GitHub check-run output evidence and redaction before Pi diagnosis, plus leased stack branch rebases with exact bot-owned branch authorization.
 - Added low-cardinality Prometheus counters at the internal `/metrics` endpoint.
+- Updated pinned GitHub Actions to current Node 24-compatible major releases after hosted CI reported the Node 20 deprecation warning.
