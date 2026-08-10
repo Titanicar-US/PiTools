@@ -4,8 +4,18 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 publish_script="${repo_root}/scripts/publish-release.sh"
 image_workflow="${repo_root}/.github/workflows/build-image.yml"
+makefile="${repo_root}/Makefile"
 temporary_root="$(mktemp -d)"
 trap 'rm -rf "${temporary_root}"' EXIT
+
+if ! grep -Fq $'\tcargo fmt --all -- --check' "${makefile}"; then
+  echo "make check must enforce Rust formatting" >&2
+  exit 1
+fi
+if ! grep -Fq $'\thelm/pitools/ci/verify-render.sh' "${makefile}"; then
+  echo "make check must validate the Helm render contract" >&2
+  exit 1
+fi
 
 if ! grep -Fq -- '  pull_request:' "${image_workflow}"; then
   echo "image validation must run on pull requests" >&2

@@ -26,6 +26,8 @@ The initial implementation is present and validated through the local changed-sc
 
 The remaining release prerequisites are external or intentionally fail-closed: GitHub credentials and authenticated UAT, remote/commit/publication authority, dev01/Flux rollout, provider-backed Pi execution, and fork-head write scope. Bounded Actions job-log and check-run annotation evidence is delivered; low-cardinality Prometheus metrics are delivered. Deterministic feedback now records applied or rejected outcomes on the originating review comment before resolution, or in a PR-level outcome comment for issue comments, and persists rejection state so failed suggestions are not retried forever. The task checkboxes below are retained as the original design checklist; the evidence-based status here and `CONTEXT.md` are authoritative, and the unchecked items do not by themselves indicate missing implementation.
 
+The changed-scope `make check` gate includes Rust formatting, the locked Rust and TypeScript test suites, the BDD suite, the publish contract, and the fail-closed Helm security render contract. The hosted pull-request workflow runs the same gate before independent core and runner image builds.
+
 ### Evidence-based completion audit
 
 - Tasks 1-10: source implementation, executable BDD coverage, focused tests, packaging, and the dev01/Flux handoff are complete and validated. Provider-backed execution, release publication, and dev01 runtime acceptance remain intentionally external gates.

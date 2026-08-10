@@ -22,6 +22,7 @@ The Pi worker defaults to a deterministic diagnosis-only runtime and communicate
 
 - Rust 1.97.1 with Cargo, rustfmt, and Clippy.
 - Node.js 26 or newer and npm.
+- Helm 3 for the local chart render contract.
 - PostgreSQL 17 or newer for integration tests and local operation.
 - NATS 2.10 or newer for wakeup notifications.
 

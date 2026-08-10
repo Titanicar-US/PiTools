@@ -13,6 +13,7 @@ check:
 	cargo clippy --locked --all-targets --all-features -- -D warnings
 	cargo test --locked
 	npm --prefix workers/pi run check
+	helm/pitools/ci/verify-render.sh
 	bash -n scripts/accept-local-compose.sh
 	bash tests/publish_contract.sh
 

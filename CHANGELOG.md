@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Made `make check` enforce Rust formatting and the fail-closed Helm security render contract.
 - Bootstrapped the Rust GitHub App control plane, signed webhook receiver, durable Postgres watchlist, readiness evaluation, operator API, and CLI.
 - Added living work-plan comments, immutable final summaries, and GitHub Check Run Skip/Cancel actions.
 - Added deterministic feedback repair primitives, typed GitHub Actions/Pi boundaries, safe stack planning, queue fencing, and dev01-ready container/Helm packaging.
