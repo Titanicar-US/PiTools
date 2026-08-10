@@ -28,6 +28,8 @@ export PITOOLS_ADMIN_BEARER_TOKEN_HASH='<argon2id-hash-for-local-use>'
 docker compose -f docker-compose.local.yml up --build
 ```
 
+Run the bounded local webhook and persistence smoke test with `make acceptance`. It generates temporary non-production credentials, builds the core image, starts PostgreSQL and NATS, verifies health/readiness and admin authorization, sends and replays one signed pull-request delivery, reads the watchlist and event ledger, checks webhook metrics, and tears down its uniquely named Compose project. Override `PITOOLS_ACCEPTANCE_HTTP_PORT`, `PITOOLS_ACCEPTANCE_POSTGRES_PORT`, or `PITOOLS_ACCEPTANCE_NATS_PORT` when the default loopback ports are occupied.
+
 Stop the stack with `docker compose -f docker-compose.local.yml down`. Add `--volumes` only when intentionally discarding the local PostgreSQL data.
 
 The Pi runner receives no PiTools application secrets. For a one-shot protocol check, send one JSON request on standard input:

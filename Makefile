@@ -1,4 +1,4 @@
-.PHONY: install check check-full quality-gates clean build publish
+.PHONY: install check check-full quality-gates clean build publish acceptance
 
 PITOOLS_REPOSITORY ?= Titanicar-US/PiTools
 PITOOLS_RELEASE_TAG ?=
@@ -13,7 +13,11 @@ check:
 	cargo clippy --locked --all-targets --all-features -- -D warnings
 	cargo test --locked
 	npm --prefix workers/pi run check
+	bash -n scripts/accept-local-compose.sh
 	bash tests/publish_contract.sh
+
+acceptance:
+	bash scripts/accept-local-compose.sh
 
 check-full:
 	cargo test --locked --all-features
