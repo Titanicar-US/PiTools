@@ -185,9 +185,16 @@ impl JobQueue {
     pub async fn approve_plan(&self, job_id: Uuid) -> Result<bool, QueueError> {
         let result = sqlx::query(
             "UPDATE jobs SET state = 'queued',
-             plan = jsonb_set(plan, '{approved}', 'true'::jsonb, TRUE),
+             plan = jsonb_set(
+                 jsonb_set(plan, '{approved}', 'true'::jsonb, TRUE),
+                 '{approved_hash}',
+                 plan->'approval_details'->'plan_hash',
+                 TRUE
+             ),
              result = NULL, updated_at = NOW()
-             WHERE id = $1 AND state = 'waiting_approval' AND cancel_requested = FALSE",
+             WHERE id = $1 AND state = 'waiting_approval' AND cancel_requested = FALSE
+               AND jsonb_typeof(plan->'approval_details') = 'object'
+               AND jsonb_typeof(plan->'approval_details'->'plan_hash') = 'string'",
         )
         .bind(job_id)
         .execute(self.database.pool())

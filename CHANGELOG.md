@@ -23,3 +23,11 @@
 - Removed the dead unconfigured-router webhook placeholder so webhook intake is exposed only through the stateful verified receiver.
 - Added bounded applied/rejected replies to automation review comments and PR-level outcome comments for issue comments, with durable rejected state preventing repeat attempts.
 - Hardened typed CI repair admission so provider patches cannot bypass explicit Check Run approval, even when repository policy disables general approval.
+- Added fail-closed installation suspend/delete and repository-removal handling that stops reconciliation, hides revoked watchlist rows, and cancels active jobs.
+- Unified the GitHub App manifest and scoped worker-token permission contract with `administration:read` for protected-branch requirement reads.
+- Added a bounded, allowlisted source snapshot to the Pi request protocol; the sidecar receives source over validated NATS JSON and no longer relies on an empty shared workspace mount.
+- Bound every approval to a visible `sha256:` proposal fingerprint and made queue approval fail closed when the stored proposal changes.
+- Added protected-branch review-count, stale/latest-push, code-owner, and GitHub App-specific required-check readiness gates; policy checks are now additive.
+- Partitioned unrelated open pull requests out of stack planning and delayed PR base-branch mutations until all planned branch safety checks complete.
+- Added per-PR jobs, audit entries, and delivery history to the operator API/CLI, plus broader CI/Pi redaction for GitHub, cloud, package, JWT, PEM, and assignment-shaped secrets.
+- Hardened repair workspaces with credential-free validation snapshots, safe Git config environment, and staged mode/rename/copy rejection.

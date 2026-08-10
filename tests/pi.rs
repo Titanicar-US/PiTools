@@ -1,4 +1,4 @@
-use pitools::pi::{PiJobRequest, PiWorker};
+use pitools::pi::{PiJobRequest, PiSnapshotFile, PiWorker};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -8,6 +8,10 @@ fn request() -> PiJobRequest {
         job_id: Uuid::now_v7(),
         repository: "acme/repo".into(),
         snapshot_path: "snapshot.json".into(),
+        snapshot_files: vec![PiSnapshotFile {
+            path: "src/lib.rs".into(),
+            content: "fn main() {}\n".into(),
+        }],
         allowed_paths: vec!["src/lib.rs".into()],
         failure_evidence: Some("test failed".into()),
         policy_revision: "sha256:policy".into(),
@@ -67,4 +71,30 @@ async fn pi_worker_rejects_typed_patches_that_do_not_require_approval() {
         .await
         .expect_err("typed mutation without approval must fail closed");
     assert!(error.to_string().contains("explicit approval"));
+}
+
+#[test]
+fn pi_request_rejects_unallowlisted_and_secret_like_snapshot_files() {
+    let mut unallowlisted = request();
+    unallowlisted.snapshot_files[0].path = "README.md".into();
+    assert!(unallowlisted.validate().is_err());
+
+    let mut secret_like = request();
+    secret_like.snapshot_files[0].content = "GITHUB_TOKEN=ghp_example_secret".into();
+    assert!(secret_like.validate().is_err());
+
+    for secret in [
+        "GITHUB_APP_TOKEN=ghs_example",
+        "AWS_ACCESS_KEY_ID=AKIA1234567890ABCDEF",
+        "NPM_TOKEN=npm_abcdefghijklmnop",
+        "token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature",
+    ] {
+        let mut request = request();
+        request.snapshot_files[0].content = secret.into();
+        assert!(request.validate().is_err(), "secret accepted: {secret}");
+    }
+
+    let mut evidence_secret = request();
+    evidence_secret.failure_evidence = Some("Authorization: Bearer ghs_example".into());
+    assert!(evidence_secret.validate().is_err());
 }

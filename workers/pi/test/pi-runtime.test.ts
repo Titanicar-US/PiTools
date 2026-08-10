@@ -13,6 +13,7 @@ const request = {
   jobId: "job-1",
   repository: "example/repo",
   snapshotPath: "snapshot.json",
+  snapshotFiles: [{ path: "src/main.ts", content: "export const main = true;\n" }],
   allowedPaths: ["src/main.ts"],
   failureEvidence: "npm test failed",
   policyRevision: "sha256:policy",

@@ -126,8 +126,6 @@ services:
     environment:
       NATS_URL: nats://nats:4222
       PITOOLS_PI_TRANSPORT: nats
-    volumes:
-      - pi-worker-workspace:/workspace
     depends_on:
       nats:
         condition: service_healthy
@@ -139,4 +137,3 @@ secrets:
 
 volumes:
   postgres-data:
-  pi-worker-workspace:

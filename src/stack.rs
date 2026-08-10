@@ -30,6 +30,70 @@ pub struct StackPlan {
 pub struct StackPlanner;
 
 impl StackPlanner {
+    /// Partition observed pull requests into independent stack components.
+    ///
+    /// A shared base branch alone is not a stack relationship: only an inferred
+    /// head-to-base edge or an explicit parent declaration connects components.
+    pub fn partition(pull_requests: &[StackPullRequest]) -> Vec<Vec<StackPullRequest>> {
+        let mut by_number = BTreeMap::new();
+        let mut by_head: BTreeMap<&str, Vec<i32>> = BTreeMap::new();
+        for pull_request in pull_requests {
+            by_number.insert(pull_request.number, pull_request);
+            by_head
+                .entry(&pull_request.head_branch)
+                .or_default()
+                .push(pull_request.number);
+        }
+
+        let mut adjacency: BTreeMap<i32, BTreeSet<i32>> = by_number
+            .keys()
+            .map(|number| (*number, BTreeSet::new()))
+            .collect();
+        for pull_request in pull_requests {
+            let inferred = by_head
+                .get(pull_request.base_branch.as_str())
+                .and_then(|parents| (parents.len() == 1).then_some(parents[0]));
+            if let Some(parent) = pull_request.explicit_parent.or(inferred)
+                && by_number.contains_key(&parent)
+            {
+                adjacency
+                    .entry(pull_request.number)
+                    .or_default()
+                    .insert(parent);
+                adjacency
+                    .entry(parent)
+                    .or_default()
+                    .insert(pull_request.number);
+            }
+        }
+
+        let mut components = Vec::new();
+        let mut visited = BTreeSet::new();
+        for &number in by_number.keys() {
+            if !visited.insert(number) {
+                continue;
+            }
+            let mut queue = vec![number];
+            let mut component_numbers = Vec::new();
+            while let Some(current) = queue.pop() {
+                component_numbers.push(current);
+                for &neighbor in adjacency.get(&current).into_iter().flatten() {
+                    if visited.insert(neighbor) {
+                        queue.push(neighbor);
+                    }
+                }
+            }
+            component_numbers.sort_unstable();
+            components.push(
+                component_numbers
+                    .into_iter()
+                    .filter_map(|number| by_number.get(&number).map(|item| (*item).clone()))
+                    .collect(),
+            );
+        }
+        components
+    }
+
     pub fn plan(pull_requests: &[StackPullRequest]) -> Result<StackPlan, StackError> {
         if pull_requests.is_empty() {
             return Err(StackError::EmptyStack);

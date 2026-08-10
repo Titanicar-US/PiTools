@@ -1,6 +1,7 @@
 //! Typed, bounded JSONL boundary for the isolated TypeScript Pi worker.
 
 use std::{
+    collections::BTreeSet,
     path::{Component, Path},
     process::Stdio,
     time::Duration,
@@ -13,6 +14,10 @@ use uuid::Uuid;
 use crate::ci::{CiPatch, validate_patch_set};
 
 const MAX_PI_OUTPUT_BYTES: usize = 64 * 1024;
+const MAX_PI_INPUT_BYTES: usize = 256 * 1024;
+pub const MAX_PI_SNAPSHOT_FILES: usize = 16;
+pub const MAX_PI_SNAPSHOT_FILE_BYTES: usize = 16 * 1024;
+pub const MAX_PI_SNAPSHOT_BYTES: usize = 48 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -21,10 +26,18 @@ pub struct PiJobRequest {
     pub job_id: Uuid,
     pub repository: String,
     pub snapshot_path: String,
+    pub snapshot_files: Vec<PiSnapshotFile>,
     pub allowed_paths: Vec<String>,
     pub failure_evidence: Option<String>,
     pub policy_revision: String,
     pub nonce: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PiSnapshotFile {
+    pub path: String,
+    pub content: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -71,6 +84,36 @@ impl PiJobRequest {
         for path in &self.allowed_paths {
             validate_relative_path(path)?;
         }
+        if self.snapshot_files.len() > MAX_PI_SNAPSHOT_FILES {
+            return Err(PiError::InputTooLarge);
+        }
+        let mut snapshot_paths = BTreeSet::new();
+        let mut snapshot_bytes: usize = 0;
+        for file in &self.snapshot_files {
+            validate_relative_path(&file.path)?;
+            if !self.allowed_paths.iter().any(|path| path == &file.path)
+                || !snapshot_paths.insert(file.path.clone())
+            {
+                return Err(PiError::PathNotAllowed);
+            }
+            if file.content.len() > MAX_PI_SNAPSHOT_FILE_BYTES {
+                return Err(PiError::InputTooLarge);
+            }
+            snapshot_bytes = snapshot_bytes.saturating_add(file.content.len());
+            if snapshot_bytes > MAX_PI_SNAPSHOT_BYTES {
+                return Err(PiError::InputTooLarge);
+            }
+            if contains_secret_like(&file.content) {
+                return Err(PiError::SecretLikeInput);
+            }
+        }
+        if self
+            .failure_evidence
+            .as_deref()
+            .is_some_and(contains_secret_like)
+        {
+            return Err(PiError::SecretLikeInput);
+        }
         Ok(())
     }
 }
@@ -104,7 +147,7 @@ impl PiWorker {
             .map_err(|error| PiError::Spawn(error.to_string()))?;
         let input = serde_json::to_vec(request)
             .map_err(|error| PiError::Serialization(error.to_string()))?;
-        if input.len() > MAX_PI_OUTPUT_BYTES {
+        if input.len() > MAX_PI_INPUT_BYTES {
             return Err(PiError::InputTooLarge);
         }
         let mut stdin = child.stdin.take().ok_or(PiError::MissingPipe)?;
@@ -159,7 +202,7 @@ impl NatsPiWorker {
         request.validate()?;
         let payload = serde_json::to_vec(request)
             .map_err(|error| PiError::Serialization(error.to_string()))?;
-        if payload.len() > MAX_PI_OUTPUT_BYTES {
+        if payload.len() > MAX_PI_INPUT_BYTES {
             return Err(PiError::InputTooLarge);
         }
         let message = tokio::time::timeout(
@@ -242,15 +285,58 @@ fn is_shell_program(program: &str) -> bool {
 
 fn contains_secret_like(value: &str) -> bool {
     let normalized = value.to_ascii_lowercase();
-    [
+    if [
         "github_pat_",
         "ghp_",
+        "ghs_",
+        "gho_",
+        "ghu_",
+        "ghr_",
         "sk-proj-",
         "-----begin private key",
         "bearer ",
     ]
     .iter()
     .any(|marker| normalized.contains(marker))
+        || normalized.contains("npm_")
+        || normalized.contains("akia")
+        || normalized.split_whitespace().any(looks_like_jwt)
+        || [
+            "token=",
+            "token:",
+            "password=",
+            "password:",
+            "secret=",
+            "secret:",
+            "private_key=",
+            "private-key=",
+            "api_key=",
+            "api-key=",
+        ]
+        .iter()
+        .any(|marker| normalized.contains(marker))
+    {
+        return true;
+    }
+    false
+}
+
+fn looks_like_jwt(value: &str) -> bool {
+    let mut segments = value.split('.');
+    let Some(header) = segments.next() else {
+        return false;
+    };
+    let Some(payload) = segments.next() else {
+        return false;
+    };
+    let Some(signature) = segments.next() else {
+        return false;
+    };
+    header.starts_with("eyj")
+        && header.len() >= 8
+        && payload.len() >= 8
+        && signature.len() >= 8
+        && segments.next().is_none()
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -287,6 +373,8 @@ pub enum PiError {
     PathNotAllowed,
     #[error("Pi worker output contained secret-like material")]
     SecretLikeOutput,
+    #[error("Pi worker input contained secret-like material")]
+    SecretLikeInput,
     #[error("Pi worker request is invalid")]
     InvalidRequest,
     #[error("Pi worker path is invalid: {0}")]

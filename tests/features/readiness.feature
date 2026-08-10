@@ -26,6 +26,13 @@ Feature: advisory pull request readiness
     When PiTools evaluates pull request readiness
     Then the readiness reason includes a missing required review
 
+  Scenario: protected branch review requirements block stale or insufficient approvals
+    Given a ready pull request
+    And the protected branch requires two approvals and has a stale review
+    When PiTools evaluates pull request readiness
+    Then the readiness reason includes an insufficient review count
+    And the readiness reason includes a stale review
+
   Scenario: unresolved configured automation feedback blocks readiness
     Given a ready pull request
     And the pull request has unresolved configured automation feedback

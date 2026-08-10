@@ -79,6 +79,21 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Inspect one pull request with its jobs, audit entries, and deliveries.
+    Inspect {
+        /// GitHub repository database ID.
+        #[arg(long)]
+        repository_id: i64,
+        /// Pull request number within the repository.
+        #[arg(long)]
+        pull_request_number: i32,
+        /// Maximum rows per history section, capped at 100.
+        #[arg(long, default_value_t = 50)]
+        limit: i64,
+        /// Render machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Request cancellation of a queued or active job.
     Cancel {
         /// Job UUID returned by reconcile or the operator API.
@@ -255,6 +270,37 @@ async fn main() -> Result<()> {
                 for row in rows {
                     println!("{} {} {}", row.created_at, row.event_type, row.summary);
                 }
+            }
+        }
+        Command::Inspect {
+            repository_id,
+            pull_request_number,
+            limit,
+            json,
+        } => {
+            let config = AppConfig::from_env()?;
+            let database = Database::connect(config.database_url.expose_secret()).await?;
+            database.migrate().await?;
+            let history = Repositories::new(database)
+                .pull_request_history(repository_id, pull_request_number, limit)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("pull request not found"))?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&history)?);
+            } else {
+                println!(
+                    "{}#{} {} [{}]",
+                    history.pull_request.repository_id,
+                    history.pull_request.number,
+                    history.pull_request.title,
+                    history.pull_request.state
+                );
+                println!("jobs: {}", history.jobs.len());
+                for job in &history.jobs {
+                    println!("  {} {} {}", job.id, job.kind, job.state);
+                }
+                println!("audit entries: {}", history.audit.len());
+                println!("deliveries: {}", history.events.len());
             }
         }
         Command::Cancel { job_id } => {

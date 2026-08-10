@@ -37,6 +37,8 @@ pub struct PullRequestSnapshot {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CheckSnapshot {
     pub name: String,
+    pub app_id: Option<i64>,
+    pub required_app_id: Option<i64>,
     pub status: CheckStatus,
     pub conclusion: Option<CheckConclusion>,
     pub required: bool,
@@ -82,6 +84,13 @@ pub struct ReadinessInput {
     pub branch_is_current: bool,
     pub required_checks: Vec<CheckSnapshot>,
     pub approved: bool,
+    pub approval_count: usize,
+    pub required_approval_count: usize,
+    pub stale_approval_present: bool,
+    pub last_push_approval_required: bool,
+    pub latest_push_approval: bool,
+    pub code_owner_review_required: bool,
+    pub code_owner_review_satisfied: bool,
     pub unresolved_feedback: Vec<FeedbackSnapshot>,
     pub is_draft: bool,
 }
@@ -104,6 +113,11 @@ pub enum ReadinessReason {
     RequiredCheckPending,
     RequiredCheckFailed,
     RequiredCheckMissing,
+    RequiredCheckWrongApp,
     RequiredReviewMissing,
+    RequiredReviewCountMissing,
+    StaleReview,
+    LastPushApprovalMissing,
+    CodeOwnerReviewMissing,
     UnresolvedAutomationFeedback,
 }

@@ -316,6 +316,25 @@ async fn reads_the_repository_policy_as_bounded_raw_text() {
 }
 
 #[tokio::test]
+async fn reads_an_allowlisted_repository_file_at_the_pull_request_head() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/repos/acme/widgets/contents/src/main.rs"))
+        .and(query_param("ref", "head-sha"))
+        .and(header("authorization", format!("Bearer {TOKEN}")))
+        .respond_with(ResponseTemplate::new(200).set_body_string("fn main() {}\n"))
+        .mount(&server)
+        .await;
+
+    let content = client(&server)
+        .get_repository_file("acme", "widgets", "src/main.rs", "head-sha", 1024)
+        .await
+        .expect("repository file read succeeds")
+        .expect("repository file exists");
+    assert_eq!(content, "fn main() {}\n");
+}
+
+#[tokio::test]
 async fn resolves_review_threads_through_the_graphql_api() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))

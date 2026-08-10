@@ -12,11 +12,13 @@ The initial release is delivered as a Rust control plane with a TypeScript Pi wo
 
 - An operator creates a GitHub App through the GitHub App Manifest flow, configures the App credentials and webhook secret, and installs it on selected repositories.
 - PiTools receives PR lifecycle, comment/review, check, workflow, and status events. It verifies signatures, deduplicates deliveries, records the event, and adds or removes PRs from the watchlist.
+- Installation suspension/deletion and repository-removal events deactivate the affected access scope, cancel queued or running jobs, and prevent revoked repositories from being reconciled until access is restored and inventory is refreshed.
 - A periodic reconciler refreshes open PRs so missed or out-of-order webhooks do not leave the watchlist stale.
-- The API and CLI show each watched PR, its advisory readiness state, reasons, latest event, job, and audit history.
+- The API and CLI show each watched PR, its advisory readiness state, reasons, jobs, deliveries, and audit history.
 - A failed GitHub Actions check contributes bounded check-run output, first-page annotations, and plain-text job logs to diagnosis when GitHub makes those records available; the evidence is redacted before it crosses into Pi.
 - A job that plans or makes changes creates one living PiTools status comment, updates it through its lifecycle, and appends a final immutable summary containing the plan, decisions, commits, files, checks, and unresolved items.
 - The living comment links to a PiTools Check Run. The Check Run exposes GitHub-native Skip current item and Cancel run actions. GitHub returns action clicks as `check_run.requested_action` events.
+- When approval is required, the living comment also displays the `sha256:` fingerprint of the exact proposal and bound details; queue approval is rejected if that fingerprint no longer matches.
 - Skip affects only the current planned item. Cancel stops new work cooperatively and prevents further mutations. Only the PR author or a repository maintainer may use either control.
 - PiTools never merges a PR. GitHub branch protection and human approval remain authoritative.
 
@@ -30,7 +32,7 @@ Postgres is the durable source of truth for installations, repositories, pull re
 
 ### Pi worker boundary
 
-The TypeScript sidecar uses the Pi SDK/workflow runtime for feedback reasoning and CI diagnosis. The Rust control plane collects bounded check-run output, first-page annotations, and plain-text Actions job logs, redacts the evidence, then sends a bounded, versioned request over an authenticated, network-restricted NATS request/reply subject. The sidecar returns a nonce/job-bound JSON result. It has provider credentials only inside the worker boundary, no GitHub App private key or admin token, scrubbed repository-tool environments, and provider/allowlisted egress. A deterministic wrapper validates the result schema, limits paths and output size, redacts secrets, rejects malformed or unsafe plans, and hands the result to Rust. Pi never writes to GitHub directly.
+The TypeScript sidecar uses the Pi SDK/workflow runtime for feedback reasoning and CI diagnosis. The Rust control plane collects bounded check-run output, first-page annotations, plain-text Actions job logs, and only bounded contents of configured repair paths at the exact PR head; it rejects secret-like source before sending a bounded, versioned request over an authenticated, network-restricted NATS request/reply subject. The sidecar returns a nonce/job-bound JSON result. It has provider credentials only inside the worker boundary, no GitHub App private key or admin token, no repository volume, scrubbed repository-tool environments, and provider/allowlisted egress. A deterministic wrapper validates the result schema, limits paths and output size, redacts secrets, rejects malformed or unsafe plans, and hands the result to Rust. Pi never writes to GitHub directly.
 
 The request snapshot path and every allowed or proposed file path are canonical repository-relative paths. Absolute paths, traversal segments, alternate separators, and other non-canonical forms are rejected at both the Rust and TypeScript worker boundaries before provider execution.
 
@@ -40,13 +42,15 @@ PiTools publishes a container image and reusable Helm chart. The production prof
 
 ## Security and authority
 
-- The GitHub App requests the full future-facing permission set from v1, but runtime actions still require repository policy and job approval.
+- The GitHub App requests the full future-facing permission set from v1, including `administration:read` for protected-branch requirements, but runtime actions still require repository policy and job approval.
 - Webhooks require `X-Hub-Signature-256` verification and `X-GitHub-Delivery` idempotency.
 - The App's private key and webhook secret are never exposed to Pi, repository commands, comments, or logs.
+- Readiness unions repository policy checks with GitHub protected-branch checks, preserves required-check App identity, counts current approvals, and reports stale, latest-push, code-owner, and review-count gaps.
 - Repository policy is versioned in `.pitools.yml`. Service-level invariants cannot be weakened by that file: PiTools cannot merge, cannot export secrets, and does not force-push by default.
 - Typed CI patches always require an explicit Check Run approval; repository policy cannot disable this mutation gate, and Pi rejects any patch result that does not declare approval.
 - Feedback automation is limited to configured automation actors. Human feedback is recorded and surfaced but is not automatically changed.
 - Suggested changes are applied only after exact extraction, isolated worktree validation, configured checks, and policy approval.
+- Validation runs from a `.git`-free snapshot in a credential-free, network-isolated sandbox; staged renames, copies, and mode changes are rejected before commit.
 - Optional provider-backed CI/feedback repair executes in an ephemeral least-privileged worker with bounded resources and provider/allowlisted network access; diagnosis-only mode remains the default.
 - Repair commits use the GitHub App bot identity and include a job/audit trailer.
 
@@ -55,7 +59,7 @@ PiTools publishes a container image and reusable Helm chart. The production prof
 1. **Watchlist foundation and control UX:** repository bootstrap, event ledger, watchlist, reconciliation, readiness, API/CLI, policy, comments, Check Run controls, audit, tests, and deployment packaging.
 2. **Deterministic feedback repair:** configured automation actor classification, review-thread state, exact suggested-change extraction, isolated worktree application, validation, comments, and resolution.
 3. **GitHub Actions repair:** failed workflow/job normalization, ephemeral repair runner, Pi diagnosis/typed result wrapper, approval flow, commit/push, and final summary.
-4. **Stack and rebase management:** explicit stack model, deterministic ordering, fast-forward/rebase planning, conflict handling, and opt-in force-push only for approved bot-owned branches.
+4. **Stack and rebase management:** independent stack partitioning, explicit stack model, deterministic ordering, fast-forward/rebase planning, conflict handling, and opt-in force-push only for approved bot-owned branches.
 
 Each slice is independently testable and keeps the prior slice usable.
 

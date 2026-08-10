@@ -1,4 +1,4 @@
-use pitools::github::events::DeliveryEnvelope;
+use pitools::github::events::{AccessLifecycle, DeliveryEnvelope};
 use serde_json::json;
 
 #[test]
@@ -113,4 +113,62 @@ fn status_deliveries_expose_the_commit_for_watchlist_matching() {
         serde_json::to_vec(&payload).unwrap(),
     );
     assert_eq!(envelope.head_sha(), Some("head-sha"));
+}
+
+#[test]
+fn installation_lifecycle_events_classify_revocation_and_reactivation() {
+    let envelope = |event_name: &str, action: &str, payload: serde_json::Value| {
+        DeliveryEnvelope::from_payload(
+            format!("{event_name}-{action}"),
+            event_name.into(),
+            payload.clone(),
+            serde_json::to_vec(&payload).unwrap(),
+        )
+    };
+
+    assert_eq!(
+        envelope(
+            "installation",
+            "suspend",
+            json!({"action": "suspend", "installation": {"id": 1}})
+        )
+        .access_lifecycle(),
+        Some(AccessLifecycle::SuspendInstallation)
+    );
+    assert_eq!(
+        envelope(
+            "installation",
+            "unsuspend",
+            json!({"action": "unsuspend", "installation": {"id": 1}})
+        )
+        .access_lifecycle(),
+        Some(AccessLifecycle::ResumeInstallation)
+    );
+    assert_eq!(
+        envelope(
+            "installation",
+            "deleted",
+            json!({"action": "deleted", "installation": {"id": 1}})
+        )
+        .access_lifecycle(),
+        Some(AccessLifecycle::DeleteInstallation)
+    );
+    assert_eq!(
+        envelope(
+            "installation_repositories",
+            "removed",
+            json!({"action": "removed", "installation": {"id": 1}, "repositories_removed": [{"id": 2}]})
+        )
+        .access_lifecycle(),
+        Some(AccessLifecycle::RemoveRepositories)
+    );
+    assert_eq!(
+        envelope(
+            "installation_repositories",
+            "added",
+            json!({"action": "added", "installation": {"id": 1}, "repositories_added": [{"id": 2}]})
+        )
+        .access_lifecycle(),
+        Some(AccessLifecycle::AddRepositories)
+    );
 }

@@ -1,5 +1,7 @@
 use std::collections::BTreeSet;
 
+use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use url::Url;
 
 pub const WORK_PLAN_MARKER: &str = "<!-- pitools:work-plan:v1 -->";
@@ -70,6 +72,7 @@ impl PlanItem {
 pub struct WorkPlanComment {
     check_run_url: Url,
     items: Vec<PlanItem>,
+    approval_hash: Option<String>,
 }
 
 impl WorkPlanComment {
@@ -82,7 +85,18 @@ impl WorkPlanComment {
         Ok(Self {
             check_run_url,
             items,
+            approval_hash: None,
         })
+    }
+
+    pub fn with_approval_hash(
+        mut self,
+        approval_hash: impl Into<String>,
+    ) -> Result<Self, ContractError> {
+        let approval_hash = approval_hash.into();
+        validate_approval_hash(&approval_hash)?;
+        self.approval_hash = Some(approval_hash);
+        Ok(self)
     }
 
     pub fn render(&self) -> Result<String, ContractError> {
@@ -90,6 +104,9 @@ impl WorkPlanComment {
             "{WORK_PLAN_MARKER}\n## PiTools work plan\n\n[Open Check Run]({})\n\n",
             self.check_run_url
         );
+        if let Some(approval_hash) = &self.approval_hash {
+            markdown.push_str(&format!("Approval fingerprint: `{approval_hash}`\n\n"));
+        }
         if self.items.is_empty() {
             markdown.push_str("No work items.\n");
         } else {
@@ -269,6 +286,77 @@ pub fn is_authorized(actor_login: &str, pr_author: &str, maintainers: &[String])
             }))
 }
 
+/// Return the stable fingerprint of the immutable proposal and its visible details.
+///
+/// Queue control fields are excluded so a successful approval does not change the
+/// value it authorizes. The fingerprint is still invalidated when the proposal or
+/// its bound details change.
+pub fn approval_fingerprint(plan: &Value, details: &Value) -> String {
+    let proposal = without_approval_control_fields(plan);
+    let details = without_plan_hash(details);
+    let payload = json!({"plan": proposal, "details": details});
+    let bytes = serde_json::to_vec(&payload).expect("JSON values always serialize");
+    format!("sha256:{}", hex::encode(Sha256::digest(bytes)))
+}
+
+/// Add the canonical fingerprint to the details shown to an operator and stored
+/// with the waiting job.
+pub fn bind_approval_details(plan: &Value, details: Value) -> Value {
+    let mut details = match details {
+        Value::Object(details) => Value::Object(details),
+        details => json!({"details": details}),
+    };
+    let hash = approval_fingerprint(plan, &details);
+    details
+        .as_object_mut()
+        .expect("approval details are always an object")
+        .insert("plan_hash".into(), Value::String(hash));
+    details
+}
+
+/// Check both the explicit approval bit and the exact proposal hash it approved.
+pub fn plan_is_approved(plan: &Value) -> bool {
+    plan.get("approved")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        && plan
+            .get("approved_hash")
+            .and_then(Value::as_str)
+            .zip(plan.get("approval_details"))
+            .is_some_and(|(approved_hash, details)| {
+                details
+                    .get("plan_hash")
+                    .and_then(Value::as_str)
+                    .is_some_and(|details_hash| {
+                        approved_hash == details_hash
+                            && approved_hash == approval_fingerprint(plan, details)
+                    })
+            })
+}
+
+fn without_approval_control_fields(plan: &Value) -> Value {
+    let mut plan = plan.clone();
+    if let Value::Object(object) = &mut plan {
+        for field in [
+            "approved",
+            "approved_hash",
+            "approval_details",
+            "skipped_items",
+        ] {
+            object.remove(field);
+        }
+    }
+    plan
+}
+
+fn without_plan_hash(details: &Value) -> Value {
+    let mut details = details.clone();
+    if let Value::Object(object) = &mut details {
+        object.remove("plan_hash");
+    }
+    details
+}
+
 pub fn apply_control(
     state: &RunState,
     request: &ControlRequest,
@@ -406,6 +494,22 @@ fn validate_safe_text(field: &'static str, value: &str) -> Result<(), ContractEr
         return Err(ContractError::Invalid {
             field,
             reason: "contains secret-like material".into(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_approval_hash(value: &str) -> Result<(), ContractError> {
+    let Some(hex_value) = value.strip_prefix("sha256:") else {
+        return Err(ContractError::Invalid {
+            field: "approval hash",
+            reason: "must use the sha256:<64 hex characters> format".into(),
+        });
+    };
+    if hex_value.len() != 64 || !hex_value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(ContractError::Invalid {
+            field: "approval hash",
+            reason: "must use the sha256:<64 hex characters> format".into(),
         });
     }
     Ok(())

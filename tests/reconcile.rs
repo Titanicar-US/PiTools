@@ -30,6 +30,7 @@ fn converts_shuffled_github_reads_into_deterministic_readiness_and_records() {
             draft: false,
             state: Some("open".into()),
             merged: Some(false),
+            mergeable_state: Some("clean".into()),
             mergeable: Some(true),
             head: GitHubPullRequestBranch {
                 sha: "head-sha".into(),
@@ -58,6 +59,7 @@ fn converts_shuffled_github_reads_into_deterministic_readiness_and_records() {
                     app_id: Some(42),
                 }],
             }),
+            required_pull_request_reviews: None,
         },
         reviews: vec![
             PullRequestReview {
@@ -65,6 +67,7 @@ fn converts_shuffled_github_reads_into_deterministic_readiness_and_records() {
                 body: Some("now approved".into()),
                 state: "APPROVED".into(),
                 submitted_at: Some("2026-08-10T00:00:00Z".into()),
+                commit_id: None,
                 user: author("reviewer", "User"),
             },
             PullRequestReview {
@@ -72,6 +75,7 @@ fn converts_shuffled_github_reads_into_deterministic_readiness_and_records() {
                 body: Some("please fix".into()),
                 state: "CHANGES_REQUESTED".into(),
                 submitted_at: Some("2026-08-09T00:00:00Z".into()),
+                commit_id: None,
                 user: author("reviewer", "User"),
             },
         ],
@@ -126,24 +130,37 @@ fn converts_shuffled_github_reads_into_deterministic_readiness_and_records() {
             required_checks: vec![
                 CheckSnapshot {
                     name: "build".into(),
+                    app_id: Some(42),
+                    required_app_id: Some(42),
                     status: CheckStatus::Completed,
                     conclusion: Some(CheckConclusion::Failure),
                     required: true,
                 },
                 CheckSnapshot {
                     name: "legacy/status".into(),
+                    app_id: None,
+                    required_app_id: None,
                     status: CheckStatus::Completed,
                     conclusion: Some(CheckConclusion::Success),
                     required: true,
                 },
                 CheckSnapshot {
                     name: "security".into(),
+                    app_id: None,
+                    required_app_id: None,
                     status: CheckStatus::Unknown,
                     conclusion: None,
                     required: true,
                 },
             ],
             approved: true,
+            approval_count: 1,
+            required_approval_count: 0,
+            stale_approval_present: false,
+            last_push_approval_required: false,
+            latest_push_approval: true,
+            code_owner_review_required: false,
+            code_owner_review_satisfied: true,
             unresolved_feedback: vec![
                 FeedbackSnapshot {
                     id: "issue-comment:22".into(),
@@ -220,6 +237,7 @@ fn converts_shuffled_github_reads_into_deterministic_readiness_and_records() {
             CheckRecord {
                 external_id: "81".into(),
                 name: "build".into(),
+                app_id: Some(42),
                 status: "completed".into(),
                 conclusion: Some("failure".into()),
                 details_url: Some("https://ci.example/check/81".into()),
@@ -227,6 +245,7 @@ fn converts_shuffled_github_reads_into_deterministic_readiness_and_records() {
             CheckRecord {
                 external_id: "status:91".into(),
                 name: "legacy/status".into(),
+                app_id: None,
                 status: "completed".into(),
                 conclusion: Some("success".into()),
                 details_url: Some("https://ci.example/status/91".into()),

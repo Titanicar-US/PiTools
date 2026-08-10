@@ -9,7 +9,7 @@ PiTools ships two images and one Helm chart:
 
 The base images are pinned by both readable version tag and multi-platform manifest digest. Refresh a digest only after reviewing the upstream image and rebuilding both architectures used by the target cluster.
 
-Run the runner with a read-only root filesystem, a writable `noexec,nosuid,nodev` tmpfs at `/tmp`, a bounded writable worktree at `/workspace`, all Linux capabilities dropped, and only the approved network path. The caller supplies one protocol request on standard input and consumes the validated result on standard output.
+Run the runner with a read-only root filesystem, a writable `noexec,nosuid,nodev` tmpfs at `/tmp`, all Linux capabilities dropped, and only the approved network path. Source snapshots arrive as bounded, allowlisted NATS request data; the runner has no shared repository worktree or GitHub credential. The caller supplies one protocol request on standard input and consumes the validated result on standard output.
 
 ## Local Compose
 
@@ -41,6 +41,8 @@ printf '%s\n' '<validated-pi-job-json>' \
 ```
 
 The default diagnosis-only runtime requires no model credential. Enabling the Pi SDK or supplying provider credentials is a separate, caller-owned authorization boundary; do not add those values to this Compose file. A provider-backed worker may return typed unified patches, but Rust applies them only after exact path validation, a fresh PR-head check, the configured validation commands, and an authorized Check Run approval.
+
+Repository validation is fail-closed: the core image provides the baseline Git, Make, and shell tooling; policies that select `cargo_*` or `npm_check` require a deployment image variant with those toolchains installed. A missing validator is reported as a failed validation result and never authorizes a push. Validation runs from the copied source snapshot, not the credential-bearing `.git` worktree.
 
 ## Image publication
 

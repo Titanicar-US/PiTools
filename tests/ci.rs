@@ -164,6 +164,27 @@ fn redacts_common_secret_markers_from_ci_evidence() {
 }
 
 #[test]
+fn redacts_extended_provider_and_key_material_from_ci_evidence() {
+    let redacted = redact_ci_text(
+        "ghs_example gho_example AKIA1234567890ABCDEF npm_abcdefghijklmnop \
+         eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature \
+         -----BEGIN PRIVATE KEY-----\nprivate-bytes\n-----END PRIVATE KEY-----",
+    );
+
+    for secret in [
+        "ghs_example",
+        "gho_example",
+        "AKIA1234567890ABCDEF",
+        "npm_abcdefghijklmnop",
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature",
+        "private-bytes",
+    ] {
+        assert!(!redacted.contains(secret), "secret leaked: {secret}");
+    }
+    assert!(redacted.contains("[REDACTED]"));
+}
+
+#[test]
 fn ci_evidence_preserves_actions_logs_and_annotations_with_redaction() {
     let evidence = prepare_ci_evidence(
         &serde_json::json!({"checks": [{"external_id": "81"}]}),

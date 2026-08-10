@@ -31,6 +31,24 @@ fn stack_plan_orders_pull_requests_bottom_to_top() {
 }
 
 #[test]
+fn stack_partition_keeps_unrelated_pull_requests_out_of_the_stack() {
+    let bottom = pull_request(10, "stack/bottom", "main");
+    let top = pull_request(20, "stack/top", "stack/bottom");
+    let unrelated = pull_request(30, "feature/unrelated", "main");
+
+    let partitions = StackPlanner::partition(&[top, unrelated, bottom]);
+
+    assert_eq!(partitions.len(), 2);
+    assert_eq!(
+        partitions
+            .iter()
+            .map(|items| items.iter().map(|item| item.number).collect::<Vec<_>>())
+            .collect::<Vec<_>>(),
+        vec![vec![10, 20], vec![30]]
+    );
+}
+
+#[test]
 fn explicit_parent_plans_the_required_base_update() {
     let bottom = pull_request(10, "stack/bottom", "main");
     let mut top = pull_request(20, "stack/top", "main");

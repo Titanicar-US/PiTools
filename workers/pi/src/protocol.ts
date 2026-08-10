@@ -23,10 +23,18 @@ import { redactSecrets } from "./redaction.js";
 
 export const PROTOCOL_VERSION = "pitools.pi/v1" as const;
 export const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024;
+export const MAX_PI_INPUT_BYTES = 256 * 1024;
+export const MAX_PI_SNAPSHOT_FILES = 16;
+export const MAX_PI_SNAPSHOT_FILE_BYTES = 16 * 1024;
+export const MAX_PI_SNAPSHOT_BYTES = 48 * 1024;
 
 const nonEmptyString = pipe(string(), minLength(1));
 const patchPath = pipe(string(), minLength(1), maxLength(1024));
 const unifiedDiff = pipe(string(), minLength(1), maxLength(128 * 1024));
+const snapshotFileSchema = strictObject({
+  path: patchPath,
+  content: pipe(string(), maxLength(MAX_PI_SNAPSHOT_FILE_BYTES)),
+});
 
 const piPatchSchema = strictObject({
   path: patchPath,
@@ -38,6 +46,7 @@ export const piJobRequestSchema = strictObject({
   jobId: nonEmptyString,
   repository: nonEmptyString,
   snapshotPath: nonEmptyString,
+  snapshotFiles: array(snapshotFileSchema),
   allowedPaths: array(nonEmptyString),
   failureEvidence: optional(string()),
   policyRevision: nonEmptyString,
@@ -104,8 +113,29 @@ function assertOutputSize(value: unknown, maxOutputBytes: number): void {
 
 export function validateProtocolRequest(value: unknown): PiJobRequest {
   const request = parseRequest(value);
+  assertOutputSize(request, MAX_PI_INPUT_BYTES);
   assertCanonicalRepositoryPath(request.snapshotPath);
   assertAllowedPaths([], request.allowedPaths);
+  if (request.snapshotFiles.length > MAX_PI_SNAPSHOT_FILES) {
+    throw new Error("PiTools snapshot contains too many files");
+  }
+  const paths = new Set<string>();
+  let snapshotBytes = 0;
+  for (const file of request.snapshotFiles) {
+    assertCanonicalRepositoryPath(file.path);
+    assertAllowedPaths([file.path], request.allowedPaths);
+    if (paths.has(file.path)) {
+      throw new Error("PiTools snapshot contains duplicate paths");
+    }
+    paths.add(file.path);
+    snapshotBytes += Buffer.byteLength(file.content, "utf8");
+    if (snapshotBytes > MAX_PI_SNAPSHOT_BYTES) {
+      throw new Error("PiTools snapshot exceeds its byte limit");
+    }
+  }
+  if (JSON.stringify(redactSecrets(request)) !== JSON.stringify(request)) {
+    throw new Error("PiTools request contains secret-like material");
+  }
   return request;
 }
 

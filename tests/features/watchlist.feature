@@ -9,3 +9,13 @@ Feature: PR watchlist state
     Given the same GitHub delivery ID is received twice
     When PiTools records both deliveries
     Then only one event is processed
+
+  Scenario: suspended installations stop reconciliation
+    Given a GitHub App installation suspension delivery
+    When PiTools classifies the installation lifecycle
+    Then reconciliation is deactivated for the installation
+
+  Scenario: removed repositories stop reconciliation
+    Given a GitHub App repository removal delivery
+    When PiTools classifies the installation lifecycle
+    Then reconciliation is deactivated for the repository

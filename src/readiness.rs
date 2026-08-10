@@ -17,16 +17,15 @@ pub fn evaluate(input: &ReadinessInput, policy: &Policy) -> ReadinessSnapshot {
         reason_codes.push(ReadinessReason::BranchOutOfDate);
     }
 
-    let required_names: Vec<&str> = if policy.required_checks.is_empty() {
-        input
-            .required_checks
-            .iter()
-            .filter(|check| check.required)
-            .map(|check| check.name.as_str())
-            .collect()
-    } else {
-        policy.required_checks.iter().map(String::as_str).collect()
-    };
+    let mut required_names: Vec<&str> = input
+        .required_checks
+        .iter()
+        .filter(|check| check.required)
+        .map(|check| check.name.as_str())
+        .chain(policy.required_checks.iter().map(String::as_str))
+        .collect();
+    required_names.sort_unstable();
+    required_names.dedup();
     for required_name in required_names {
         let Some(check) = input
             .required_checks
@@ -36,6 +35,10 @@ pub fn evaluate(input: &ReadinessInput, policy: &Policy) -> ReadinessSnapshot {
             reason_codes.push(ReadinessReason::RequiredCheckMissing);
             continue;
         };
+        if check.required_app_id.is_some() && check.app_id != check.required_app_id {
+            reason_codes.push(ReadinessReason::RequiredCheckWrongApp);
+            continue;
+        }
         match (&check.status, &check.conclusion) {
             (CheckStatus::Completed, Some(CheckConclusion::Success | CheckConclusion::Skipped)) => {
             }
@@ -46,6 +49,23 @@ pub fn evaluate(input: &ReadinessInput, policy: &Policy) -> ReadinessSnapshot {
 
     if policy.require_approval && !input.approved {
         reason_codes.push(ReadinessReason::RequiredReviewMissing);
+    }
+    if input.required_approval_count > input.approval_count {
+        if input.approval_count == 0 {
+            reason_codes.push(ReadinessReason::RequiredReviewMissing);
+        } else {
+            reason_codes.push(ReadinessReason::RequiredReviewCountMissing);
+        }
+    }
+    if input.last_push_approval_required && !input.latest_push_approval {
+        if input.stale_approval_present {
+            reason_codes.push(ReadinessReason::StaleReview);
+        } else {
+            reason_codes.push(ReadinessReason::LastPushApprovalMissing);
+        }
+    }
+    if input.code_owner_review_required && !input.code_owner_review_satisfied {
+        reason_codes.push(ReadinessReason::CodeOwnerReviewMissing);
     }
     if input.unresolved_feedback.iter().any(|feedback| {
         policy.is_configured_automation_actor(&feedback.actor_login) && !feedback.resolved

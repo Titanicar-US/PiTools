@@ -1,5 +1,6 @@
 use pitools::workspace::{
-    RepositoryWorkspace, rebase_push_argv, remote_head_argv, validate_staged_paths,
+    RepositoryWorkspace, rebase_push_argv, remote_head_argv, validate_staged_diff_summary,
+    validate_staged_paths,
 };
 use secrecy::SecretString;
 
@@ -81,6 +82,13 @@ fn staged_paths_must_match_the_approved_mutation_set_exactly() {
     validate_staged_paths(&["src/lib.rs".into()], "src/lib.rs\n").expect("exact staged path set");
     assert!(validate_staged_paths(&["src/lib.rs".into()], "src/lib.rs\nsrc/secret\n").is_err());
     assert!(validate_staged_paths(&["src/lib.rs".into()], "src/secret\n").is_err());
+}
+
+#[test]
+fn staged_diff_must_not_change_modes_or_create_renames() {
+    validate_staged_diff_summary("file changed\n").expect("ordinary content change");
+    assert!(validate_staged_diff_summary(" mode change 100644 => 100755 file").is_err());
+    assert!(validate_staged_diff_summary("rename from old\nrename to new").is_err());
 }
 
 #[test]

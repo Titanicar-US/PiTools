@@ -9,12 +9,14 @@ The Pi worker defaults to a deterministic diagnosis-only runtime and communicate
 ## Capabilities
 
 - GitHub App Manifest setup and installation validation.
-- Signed webhook intake with delivery deduplication, open-PR inventory recovery, and periodic reconciliation.
-- Durable PR watchlist, advisory readiness reasons, API, CLI, and audit history.
-- Living progress comments, final change summaries, and GitHub-native Approve/Skip/Cancel Check Run actions.
+- Signed webhook intake with delivery deduplication, installation suspend/delete and repository-removal handling, open-PR inventory recovery, and periodic reconciliation.
+- Durable PR watchlist, protected-branch-aware readiness reasons, per-PR job/audit/delivery history in the API and CLI, and operator audit history.
+- Living progress comments with a visible approval fingerprint, final change summaries, and GitHub-native Approve/Skip/Cancel Check Run actions.
 - Deterministic configured-automation feedback repair after an authorized plan approval, with bounded applied/rejected replies on original review threads or PR-level outcome comments for issue comments.
 - GitHub Actions diagnosis with bounded check-run output, first-page annotations, and plain-text job logs redacted before Pi receives them; typed, allowlisted Pi patch proposals are applied only after approval in an ephemeral worktree, credential-free bubblewrap validation, exact staged-path verification, and a fresh-head check.
-- Explicit PR stack ordering, approved base-branch updates, and branch-history rebases; force-with-lease rewrites remain disabled unless both `allow_bot_force_push: true` and an exact `bot_owned_branches` entry authorize the branch.
+- Pi diagnosis requests include only bounded contents of configured repair paths at the exact PR head; the Pi sidecar receives no repository volume or GitHub credential.
+- Explicit PR stack partitioning and ordering, approved base-branch updates applied only after rebase safety checks, and branch-history rebases; force-with-lease rewrites remain disabled unless both `allow_bot_force_push: true` and an exact `bot_owned_branches` entry authorize the branch.
+- Readiness preserves GitHub-required status-check app identity, unions repository policy checks with protected-branch checks, and counts current approvals while identifying stale or missing latest-push approvals.
 
 ## Local prerequisites
 
@@ -35,7 +37,7 @@ Generate the admin hash without putting the token in shell history: `printf '%s'
 
 Generate the GitHub App Manifest JSON with `pitools manifest --base-url https://<approved-hostname>`, use it in GitHub's App creation flow, and let the generated `/github/manifest/callback` exchange the one-time code. Copy the returned App ID, PEM, and webhook secret into the deployment's external secret manager, then discard the browser response and run `pitools doctor` after installing the App on selected repositories. The callback does not persist credentials. The full future-facing permission matrix is intentional; runtime policy and installation-token scoping still fail closed.
 
-The generated manifest requests `administration:read`, `metadata:read`, `pull_requests:write`, `issues:write`, `checks:write`, `statuses:read`, `actions:read`, and `contents:write`, plus the PR, review, check, status, and workflow webhook events. The administration read permission lets readiness checks inspect protected-branch requirements. Installation tokens are short-lived and should be scoped to selected repositories; PiTools never uses a broad personal access token. Periodic inventory can recover open PRs after a missed webhook and fresh reads retire watched rows after close/merge.
+The generated manifest requests `administration:read`, `metadata:read`, `pull_requests:write`, `issues:write`, `checks:write`, `statuses:read`, `actions:read`, and `contents:write`, plus the PR, review, check, status, and workflow webhook events. The administration read permission lets readiness checks inspect protected-branch requirements. Installation tokens are short-lived and should be scoped to selected repositories; PiTools never uses a broad personal access token. Suspension, deletion, and repository-removal events stop reconciliation until access is restored and inventory is refreshed. Periodic inventory can recover open PRs after a missed webhook and fresh reads retire watched rows after close/merge.
 
 The operator CLI reads the same durable state used by the server: `pitools watchlist [--json]`, `pitools events [--limit 50] [--json]`, and `pitools audit [--limit 50] [--json]`. Use `pitools reconcile --repository-id <id> --pull-request-number <number>` to enqueue a refresh and `pitools cancel <job-id>` to request cancellation. Event output contains delivery metadata and hashes, not raw webhook payloads; list limits are capped at 100.
 

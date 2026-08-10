@@ -360,6 +360,20 @@ impl RepositoryWorkspace {
             .await?;
         validate_staged_paths(expected, &staged.stdout)?;
 
+        let summary = self
+            .run(
+                &self.repository_root,
+                &[
+                    "git".into(),
+                    "diff".into(),
+                    "--cached".into(),
+                    "--summary".into(),
+                    "--".into(),
+                ],
+            )
+            .await?;
+        validate_staged_diff_summary(&summary.stdout)?;
+
         let unstaged = self
             .run(
                 &self.repository_root,
@@ -669,6 +683,9 @@ impl RepositoryWorkspace {
             ("GIT_ASKPASS", askpass.as_str()),
             ("GIT_TERMINAL_PROMPT", "0"),
             ("GIT_CONFIG_NOSYSTEM", "1"),
+            ("GIT_CONFIG_GLOBAL", "/dev/null"),
+            ("GIT_CONFIG_SYSTEM", "/dev/null"),
+            ("GIT_ATTR_NOSYSTEM", "1"),
             ("PITOOLS_GIT_ASKPASS", "1"),
             ("PITOOLS_GIT_USERNAME", self.username.as_str()),
             ("PITOOLS_GIT_PASSWORD", self.password.expose_secret()),
@@ -817,6 +834,20 @@ pub fn validate_staged_paths(expected: &[String], observed: &str) -> Result<(), 
             observed: observed.into_iter().collect(),
         })
     }
+}
+
+/// Reject staged metadata that widens a typed content-only repair into a
+/// rename, copy, or executable-mode change.
+pub fn validate_staged_diff_summary(summary: &str) -> Result<(), WorkspaceError> {
+    let normalized = summary.to_ascii_lowercase();
+    if normalized.lines().any(|line| {
+        line.contains("mode change") || line.starts_with("rename ") || line.starts_with("copy ")
+    }) {
+        return Err(WorkspaceError::UnexpectedWorkspaceChanges(
+            summary.trim().to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 fn copy_changed_path(

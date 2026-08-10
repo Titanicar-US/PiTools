@@ -52,6 +52,11 @@ export class PiSdkRuntime implements PiRuntimeAdapter {
           "Do not claim that files were changed. Do not include credentials or raw secrets.",
           `Repository: ${request.repository}`,
           `Allowed paths: ${request.allowedPaths.join(", ")}`,
+          `Snapshot files:\n${request.snapshotFiles.length === 0
+            ? "not supplied"
+            : request.snapshotFiles
+                .map((file) => `--- ${file.path} ---\n${file.content}`)
+                .join("\n")}`,
           `Failure evidence: ${request.failureEvidence ?? "not supplied"}`,
         ].join("\n"),
       );

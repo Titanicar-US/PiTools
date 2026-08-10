@@ -31,12 +31,31 @@ pub fn is_repairable_check_conclusion(conclusion: &str) -> bool {
 
 /// Redact common credential-shaped values before CI evidence crosses into Pi.
 pub fn redact_ci_text(value: &str) -> String {
-    let mut redacted = value.to_owned();
-    for marker in ["ghp_", "github_pat_", "sk-proj-"] {
-        redact_token_marker(&mut redacted, marker);
-    }
     let mut lines = Vec::new();
-    for line in redacted.lines() {
+    let mut in_pem = false;
+    for original_line in value.lines() {
+        let normalized_original = original_line.to_ascii_lowercase();
+        if in_pem || normalized_original.contains("-----begin ") {
+            let ends_pem = normalized_original.contains("-----end ");
+            lines.push("[REDACTED]".to_owned());
+            in_pem = !ends_pem;
+            continue;
+        }
+        let mut line = original_line.to_owned();
+        for marker in [
+            "ghp_",
+            "github_pat_",
+            "ghs_",
+            "gho_",
+            "ghu_",
+            "ghr_",
+            "sk-proj-",
+            "AKIA",
+            "npm_",
+            "eyJ",
+        ] {
+            redact_token_marker(&mut line, marker);
+        }
         let normalized = line.to_ascii_lowercase();
         if normalized.contains("authorization: bearer")
             || normalized.contains("password=")

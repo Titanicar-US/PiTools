@@ -67,14 +67,9 @@ spec:
           resources:
             {{- toYaml .Values.piWorker.resources | nindent 12 }}
           volumeMounts:
-            - name: workspace
-              mountPath: /workspace
             - name: tmp
               mountPath: /tmp
       volumes:
-        - name: workspace
-          emptyDir:
-            sizeLimit: 2Gi
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi

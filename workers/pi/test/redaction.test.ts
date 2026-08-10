@@ -10,6 +10,7 @@ test("redacts secret-like output before it crosses the worker boundary", () => {
     jobId: "job-1",
     repository: "example/repo",
     snapshotPath: "snapshot.json",
+    snapshotFiles: [],
     allowedPaths: [],
     policyRevision: "sha256:policy",
     nonce: "nonce-1",
@@ -52,4 +53,20 @@ test("redacts secret values from errors", () => {
   const redacted = redactSecrets(new Error("provider used sk-abcdefghijklmnop"));
 
   assert.equal(redacted, "Error: provider used [REDACTED]");
+});
+
+test("redacts extended provider, cloud, package, JWT, and PEM secrets", () => {
+  const values = [
+    "ghs_1234567890",
+    "gho_1234567890",
+    "AKIA1234567890ABCDEF",
+    "npm_abcdefghijklmnop",
+    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature",
+    "-----BEGIN PRIVATE KEY-----\nprivate-bytes\n-----END PRIVATE KEY-----",
+    "TOKEN=plain-secret",
+  ];
+  const redacted = String(redactSecrets(values));
+  for (const value of values) {
+    assert.equal(redacted.includes(value), false, `secret leaked: ${value}`);
+  }
 });

@@ -20,6 +20,10 @@ pub fn routes() -> axum::Router<AppState> {
             "/api/v1/watchlist/{repository_id}/{pull_request_number}",
             axum::routing::get(get_watchlist_item),
         )
+        .route(
+            "/api/v1/watchlist/{repository_id}/{pull_request_number}/history",
+            axum::routing::get(get_watchlist_history),
+        )
         .route("/api/v1/events", axum::routing::get(list_events))
         .route("/api/v1/audit", axum::routing::get(list_audit))
         .route("/api/v1/reconcile", axum::routing::post(enqueue_reconcile))
@@ -75,6 +79,24 @@ async fn get_watchlist_item(
         .map_err(|error| ApiError::Internal(error.to_string()))?
         .ok_or(ApiError::NotFound)?;
     Ok(Json(detail))
+}
+
+async fn get_watchlist_history(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((repository_id, pull_request_number)): Path<(i64, i32)>,
+    Query(query): Query<ListQuery>,
+) -> Result<Json<crate::repository::PullRequestHistory>, ApiError> {
+    require_admin(&headers, &state)?;
+    let repositories = state
+        .repositories
+        .ok_or(ApiError::Unavailable("database"))?;
+    let history = repositories
+        .pull_request_history(repository_id, pull_request_number, query.limit())
+        .await
+        .map_err(|error| ApiError::Internal(error.to_string()))?
+        .ok_or(ApiError::NotFound)?;
+    Ok(Json(history))
 }
 
 #[derive(Debug, Serialize)]

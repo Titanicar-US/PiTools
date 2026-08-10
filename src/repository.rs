@@ -5,7 +5,9 @@ use uuid::Uuid;
 
 use crate::{
     db::Database,
-    github::events::{CheckRecord, DeliveryEnvelope, EventParseError, FeedbackRecord},
+    github::events::{
+        AccessLifecycle, CheckRecord, DeliveryEnvelope, EventParseError, FeedbackRecord,
+    },
     models::{PullRequestSnapshot, PullRequestState, ReadinessSnapshot},
     policy::Policy,
 };
@@ -141,6 +143,7 @@ impl Repositories {
             .await?;
         self.upsert_repository_from_payload(delivery, connection)
             .await?;
+        self.apply_access_lifecycle(delivery, connection).await?;
         if let Some(snapshot) = delivery.pull_request_snapshot()? {
             self.upsert_pull_request_on(connection, &snapshot).await?;
         }
@@ -380,6 +383,11 @@ impl Repositories {
                 repositories.extend(values);
             }
         }
+        let reactivate = matches!(
+            delivery.access_lifecycle(),
+            Some(AccessLifecycle::AddRepositories)
+        ) || (delivery.event_name == "installation"
+            && delivery.action.as_deref() == Some("created"));
         for repository in repositories {
             let Some(repository_id) = repository.get("id").and_then(serde_json::Value::as_i64)
             else {
@@ -402,6 +410,7 @@ impl Repositories {
                  VALUES ($1, $2, $3, $4, $5)
                  ON CONFLICT (id) DO UPDATE SET owner = EXCLUDED.owner,
                  name = EXCLUDED.name, default_branch = EXCLUDED.default_branch,
+                 active = CASE WHEN $6 THEN TRUE ELSE repositories.active END,
                  updated_at = NOW()",
             )
             .bind(repository_id)
@@ -409,9 +418,132 @@ impl Repositories {
             .bind(owner)
             .bind(name)
             .bind(default_branch)
+            .bind(reactivate)
             .execute(&mut *connection)
             .await?;
         }
+        Ok(())
+    }
+
+    async fn apply_access_lifecycle(
+        &self,
+        delivery: &DeliveryEnvelope,
+        connection: &mut sqlx::PgConnection,
+    ) -> Result<(), RepositoryError> {
+        let Some(installation_id) = delivery.installation_id else {
+            return Ok(());
+        };
+        match delivery.access_lifecycle() {
+            Some(AccessLifecycle::SuspendInstallation) => {
+                sqlx::query(
+                    "UPDATE installations SET suspended_at = NOW(), updated_at = NOW()
+                     WHERE id = $1",
+                )
+                .bind(installation_id)
+                .execute(&mut *connection)
+                .await?;
+                self.cancel_installation_jobs(connection, installation_id)
+                    .await?;
+            }
+            Some(AccessLifecycle::ResumeInstallation) => {
+                sqlx::query(
+                    "UPDATE installations SET suspended_at = NULL, updated_at = NOW()
+                     WHERE id = $1",
+                )
+                .bind(installation_id)
+                .execute(&mut *connection)
+                .await?;
+            }
+            Some(AccessLifecycle::DeleteInstallation) => {
+                sqlx::query(
+                    "UPDATE installations SET suspended_at = NOW(), updated_at = NOW()
+                     WHERE id = $1",
+                )
+                .bind(installation_id)
+                .execute(&mut *connection)
+                .await?;
+                sqlx::query(
+                    "UPDATE repositories SET active = FALSE, updated_at = NOW()
+                     WHERE installation_id = $1",
+                )
+                .bind(installation_id)
+                .execute(&mut *connection)
+                .await?;
+                self.cancel_installation_jobs(connection, installation_id)
+                    .await?;
+            }
+            Some(AccessLifecycle::RemoveRepositories) => {
+                for repository_id in removed_repository_ids(delivery) {
+                    self.deactivate_repository(connection, repository_id)
+                        .await?;
+                }
+            }
+            Some(AccessLifecycle::AddRepositories) | None => {}
+        }
+        Ok(())
+    }
+
+    async fn deactivate_repository(
+        &self,
+        connection: &mut sqlx::PgConnection,
+        repository_id: i64,
+    ) -> Result<(), RepositoryError> {
+        sqlx::query("UPDATE repositories SET active = FALSE, updated_at = NOW() WHERE id = $1")
+            .bind(repository_id)
+            .execute(&mut *connection)
+            .await?;
+        sqlx::query(
+            "UPDATE pull_requests SET watched = FALSE, updated_at = NOW()
+             WHERE repository_id = $1",
+        )
+        .bind(repository_id)
+        .execute(&mut *connection)
+        .await?;
+        self.cancel_repository_jobs(connection, repository_id).await
+    }
+
+    async fn cancel_installation_jobs(
+        &self,
+        connection: &mut sqlx::PgConnection,
+        installation_id: i64,
+    ) -> Result<(), RepositoryError> {
+        sqlx::query(
+            "UPDATE pull_requests SET watched = FALSE, updated_at = NOW()
+             WHERE repository_id IN (
+                 SELECT id FROM repositories WHERE installation_id = $1
+             )",
+        )
+        .bind(installation_id)
+        .execute(&mut *connection)
+        .await?;
+        sqlx::query(
+            "UPDATE jobs SET state = 'cancelled', cancel_requested = TRUE,
+                    lease_owner = NULL, lease_until = NULL, lease_token = NULL, updated_at = NOW()
+             WHERE repository_id IN (
+                 SELECT id FROM repositories WHERE installation_id = $1
+             )
+               AND state IN ('queued', 'running', 'waiting_approval')",
+        )
+        .bind(installation_id)
+        .execute(&mut *connection)
+        .await?;
+        Ok(())
+    }
+
+    async fn cancel_repository_jobs(
+        &self,
+        connection: &mut sqlx::PgConnection,
+        repository_id: i64,
+    ) -> Result<(), RepositoryError> {
+        sqlx::query(
+            "UPDATE jobs SET state = 'cancelled', cancel_requested = TRUE,
+                    lease_owner = NULL, lease_until = NULL, lease_token = NULL, updated_at = NOW()
+             WHERE repository_id = $1
+               AND state IN ('queued', 'running', 'waiting_approval')",
+        )
+        .bind(repository_id)
+        .execute(&mut *connection)
+        .await?;
         Ok(())
     }
 
@@ -734,7 +866,10 @@ impl Repositories {
              JOIN pull_requests ON pull_requests.repository_id = jobs.repository_id
                 AND pull_requests.number = jobs.pull_request_number
              JOIN repositories ON repositories.id = jobs.repository_id
+             JOIN installations ON installations.id = repositories.installation_id
              WHERE jobs.check_run_id = $1
+               AND repositories.active = TRUE
+               AND installations.suspended_at IS NULL
              ORDER BY jobs.created_at DESC
              LIMIT 1",
         )
@@ -789,7 +924,13 @@ impl Repositories {
     pub async fn open_pull_requests(&self) -> Result<Vec<PullRequestRow>, RepositoryError> {
         let rows = sqlx::query(
             "SELECT repository_id, number, title, url, state, updated_at
-             FROM pull_requests WHERE watched = TRUE ORDER BY updated_at DESC",
+             FROM pull_requests
+             JOIN repositories ON repositories.id = pull_requests.repository_id
+             JOIN installations ON installations.id = repositories.installation_id
+             WHERE pull_requests.watched = TRUE
+               AND repositories.active = TRUE
+               AND installations.suspended_at IS NULL
+             ORDER BY pull_requests.updated_at DESC",
         )
         .fetch_all(self.database.pool())
         .await?;
@@ -836,6 +977,142 @@ impl Repositories {
             author_login: row.get("author_login"),
             readiness: row.get("readiness"),
         }))
+    }
+
+    pub async fn pull_request_history(
+        &self,
+        repository_id: i64,
+        pull_request_number: i32,
+        limit: i64,
+    ) -> Result<Option<PullRequestHistory>, RepositoryError> {
+        let Some(pull_request) = self
+            .pull_request_detail(repository_id, pull_request_number)
+            .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(PullRequestHistory {
+            pull_request,
+            jobs: self
+                .jobs_for_pull_request(repository_id, pull_request_number, limit)
+                .await?,
+            audit: self
+                .audit_entries_for_pull_request(repository_id, pull_request_number, limit)
+                .await?,
+            events: self
+                .events_for_pull_request(repository_id, pull_request_number, limit)
+                .await?,
+        }))
+    }
+
+    pub async fn jobs_for_pull_request(
+        &self,
+        repository_id: i64,
+        pull_request_number: i32,
+        limit: i64,
+    ) -> Result<Vec<JobRow>, RepositoryError> {
+        let rows = sqlx::query(
+            "SELECT id, kind, state, current_item, plan, result, attempt,
+                    max_attempts, cancel_requested, created_at, updated_at
+             FROM jobs
+             WHERE repository_id = $1 AND pull_request_number = $2
+             ORDER BY created_at DESC, id DESC
+             LIMIT $3",
+        )
+        .bind(repository_id)
+        .bind(pull_request_number)
+        .bind(limit.clamp(1, 100))
+        .fetch_all(self.database.pool())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| JobRow {
+                id: row.get("id"),
+                kind: row.get("kind"),
+                state: row.get("state"),
+                current_item: row.get("current_item"),
+                plan: row.get("plan"),
+                result: row.get("result"),
+                attempt: row.get("attempt"),
+                max_attempts: row.get("max_attempts"),
+                cancel_requested: row.get("cancel_requested"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            })
+            .collect())
+    }
+
+    pub async fn audit_entries_for_pull_request(
+        &self,
+        repository_id: i64,
+        pull_request_number: i32,
+        limit: i64,
+    ) -> Result<Vec<AuditRow>, RepositoryError> {
+        let rows = sqlx::query(
+            "SELECT id, repository_id, pull_request_number, job_id, actor_login,
+                    event_type, summary, evidence, created_at
+             FROM audit_entries
+             WHERE repository_id = $1 AND pull_request_number = $2
+             ORDER BY created_at DESC, id DESC
+             LIMIT $3",
+        )
+        .bind(repository_id)
+        .bind(pull_request_number)
+        .bind(limit.clamp(1, 100))
+        .fetch_all(self.database.pool())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| AuditRow {
+                id: row.get("id"),
+                repository_id: row.get("repository_id"),
+                pull_request_number: row.get("pull_request_number"),
+                job_id: row.get("job_id"),
+                actor_login: row.get("actor_login"),
+                event_type: row.get("event_type"),
+                summary: row.get("summary"),
+                evidence: row.get("evidence"),
+                created_at: row.get("created_at"),
+            })
+            .collect())
+    }
+
+    pub async fn events_for_pull_request(
+        &self,
+        repository_id: i64,
+        pull_request_number: i32,
+        limit: i64,
+    ) -> Result<Vec<EventDeliveryRow>, RepositoryError> {
+        let rows = sqlx::query(
+            "SELECT delivery_id, event_name, action, installation_id, repository_id,
+                    pull_request_number, payload_hash, supported, received_at, processed_at,
+                    processing_error
+             FROM event_deliveries
+             WHERE repository_id = $1 AND pull_request_number = $2
+             ORDER BY received_at DESC, delivery_id DESC
+             LIMIT $3",
+        )
+        .bind(repository_id)
+        .bind(pull_request_number)
+        .bind(limit.clamp(1, 100))
+        .fetch_all(self.database.pool())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| EventDeliveryRow {
+                delivery_id: row.get("delivery_id"),
+                event_name: row.get("event_name"),
+                action: row.get("action"),
+                installation_id: row.get("installation_id"),
+                repository_id: row.get("repository_id"),
+                pull_request_number: row.get("pull_request_number"),
+                payload_hash: row.get("payload_hash"),
+                supported: row.get("supported"),
+                received_at: row.get("received_at"),
+                processed_at: row.get("processed_at"),
+                processing_error: row.get("processing_error"),
+            })
+            .collect())
     }
 
     pub async fn recent_events(
@@ -905,7 +1182,12 @@ impl Repositories {
     ) -> Result<Vec<i32>, RepositoryError> {
         let rows = sqlx::query(
             "SELECT number FROM pull_requests
-             WHERE repository_id = $1 AND head_sha = $2 AND watched = TRUE
+             JOIN repositories ON repositories.id = pull_requests.repository_id
+             JOIN installations ON installations.id = repositories.installation_id
+             WHERE pull_requests.repository_id = $1 AND pull_requests.head_sha = $2
+               AND pull_requests.watched = TRUE
+               AND repositories.active = TRUE
+               AND installations.suspended_at IS NULL
              ORDER BY number",
         )
         .bind(repository_id)
@@ -920,8 +1202,13 @@ impl Repositories {
         repository_id: i64,
     ) -> Result<Option<RepositoryContext>, RepositoryError> {
         let row = sqlx::query(
-            "SELECT id, installation_id, owner, name, default_branch, policy_yaml
-             FROM repositories WHERE id = $1 AND active = TRUE",
+            "SELECT repositories.id, repositories.installation_id, repositories.owner,
+                    repositories.name, repositories.default_branch, repositories.policy_yaml
+             FROM repositories
+             JOIN installations ON installations.id = repositories.installation_id
+             WHERE repositories.id = $1
+               AND repositories.active = TRUE
+               AND installations.suspended_at IS NULL",
         )
         .bind(repository_id)
         .fetch_optional(self.database.pool())
@@ -940,8 +1227,13 @@ impl Repositories {
         &self,
     ) -> Result<Vec<RepositoryContext>, RepositoryError> {
         let rows = sqlx::query(
-            "SELECT id, installation_id, owner, name, default_branch, policy_yaml
-             FROM repositories WHERE active = TRUE ORDER BY id",
+            "SELECT repositories.id, repositories.installation_id, repositories.owner,
+                    repositories.name, repositories.default_branch, repositories.policy_yaml
+             FROM repositories
+             JOIN installations ON installations.id = repositories.installation_id
+             WHERE repositories.active = TRUE
+               AND installations.suspended_at IS NULL
+             ORDER BY repositories.id",
         )
         .fetch_all(self.database.pool())
         .await?;
@@ -997,7 +1289,13 @@ impl Repositories {
             "SELECT repository_id, number, github_id, title, url, state, draft, merged,
                     head_sha, base_sha, head_branch, base_branch, author_login
              FROM pull_requests
-             WHERE repository_id = $1 AND watched = TRUE AND state = 'open'
+             JOIN repositories ON repositories.id = pull_requests.repository_id
+             JOIN installations ON installations.id = repositories.installation_id
+             WHERE pull_requests.repository_id = $1
+               AND pull_requests.watched = TRUE
+               AND pull_requests.state = 'open'
+               AND repositories.active = TRUE
+               AND installations.suspended_at IS NULL
              ORDER BY number",
         )
         .bind(repository_id)
@@ -1022,6 +1320,24 @@ impl Repositories {
             })
             .collect())
     }
+}
+
+fn removed_repository_ids(delivery: &DeliveryEnvelope) -> Vec<i64> {
+    let mut ids = delivery.repository_id.into_iter().collect::<Vec<_>>();
+    if let Some(repositories) = delivery
+        .payload
+        .get("repositories_removed")
+        .and_then(serde_json::Value::as_array)
+    {
+        ids.extend(
+            repositories
+                .iter()
+                .filter_map(|repository| repository.get("id").and_then(serde_json::Value::as_i64)),
+        );
+    }
+    ids.sort_unstable();
+    ids.dedup();
+    ids
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -1050,6 +1366,29 @@ pub struct PullRequestDetail {
     pub base_branch: String,
     pub author_login: String,
     pub readiness: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PullRequestHistory {
+    pub pull_request: PullRequestDetail,
+    pub jobs: Vec<JobRow>,
+    pub audit: Vec<AuditRow>,
+    pub events: Vec<EventDeliveryRow>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct JobRow {
+    pub id: Uuid,
+    pub kind: String,
+    pub state: String,
+    pub current_item: Option<String>,
+    pub plan: serde_json::Value,
+    pub result: Option<serde_json::Value>,
+    pub attempt: i32,
+    pub max_attempts: i32,
+    pub cancel_requested: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

@@ -24,6 +24,7 @@ pub struct FeedbackRecord {
 pub struct CheckRecord {
     pub external_id: String,
     pub name: String,
+    pub app_id: Option<i64>,
     pub status: String,
     pub conclusion: Option<String>,
     pub details_url: Option<String>,
@@ -46,6 +47,15 @@ pub struct CheckRunControl {
     pub check_run_id: i64,
     pub action: String,
     pub actor_login: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccessLifecycle {
+    SuspendInstallation,
+    ResumeInstallation,
+    DeleteInstallation,
+    RemoveRepositories,
+    AddRepositories,
 }
 
 impl DeliveryEnvelope {
@@ -95,6 +105,19 @@ impl DeliveryEnvelope {
                 | "workflow_run"
                 | "status"
         )
+    }
+
+    pub fn access_lifecycle(&self) -> Option<AccessLifecycle> {
+        match (self.event_name.as_str(), self.action.as_deref()) {
+            ("installation", Some("suspend")) => Some(AccessLifecycle::SuspendInstallation),
+            ("installation", Some("unsuspend")) => Some(AccessLifecycle::ResumeInstallation),
+            ("installation", Some("deleted")) => Some(AccessLifecycle::DeleteInstallation),
+            ("installation_repositories", Some("removed")) => {
+                Some(AccessLifecycle::RemoveRepositories)
+            }
+            ("installation_repositories", Some("added")) => Some(AccessLifecycle::AddRepositories),
+            _ => None,
+        }
     }
 
     pub fn head_sha(&self) -> Option<&str> {
@@ -304,6 +327,10 @@ impl DeliveryEnvelope {
         Ok(Some(CheckRecord {
             external_id,
             name,
+            app_id: check_run
+                .get("app")
+                .and_then(|app| app.get("id"))
+                .and_then(Value::as_i64),
             status,
             conclusion: check_run
                 .get("conclusion")

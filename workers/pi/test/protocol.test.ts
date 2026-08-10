@@ -13,6 +13,7 @@ const request = {
   jobId: "job-1",
   repository: "example/repo",
   snapshotPath: "snapshot.json",
+  snapshotFiles: [{ path: "src/main.rs", content: "fn main() {}\n" }],
   allowedPaths: ["src/main.rs"],
   failureEvidence: "cargo test failed",
   policyRevision: "sha256:policy",

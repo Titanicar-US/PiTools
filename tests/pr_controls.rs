@@ -1,10 +1,12 @@
 #[path = "../src/pr_controls.rs"]
 mod pr_controls;
 
+use serde_json::json;
+
 use pr_controls::{
     ControlAction, ControlError, ControlRequest, FINAL_SUMMARY_MARKER_PREFIX, FinalSummary,
     ItemStatus, PlanItem, RunState, RunStatus, WORK_PLAN_MARKER, WorkPlanComment, apply_control,
-    is_authorized,
+    approval_fingerprint, bind_approval_details, is_authorized, plan_is_approved,
 };
 
 #[test]
@@ -30,6 +32,49 @@ fn living_comment_renders_bounded_markdown_with_stable_marker_and_check_run_link
     assert!(rendered.contains("`verify` — failed — Verify result"));
     assert!(rendered.len() <= pr_controls::MAX_GITHUB_MARKDOWN_BYTES);
     assert_eq!(comment.render().unwrap(), rendered);
+}
+
+#[test]
+fn approval_fingerprint_is_visible_and_invalidated_by_proposal_changes() {
+    let plan = json!({
+        "head_sha": "abc123",
+        "proposed_patches": [{"path": "src/lib.rs", "patch": "@@ -1 +1 @@"}]
+    });
+    let details = bind_approval_details(
+        &plan,
+        json!({
+            "summary": "Apply the typed patch after validation"
+        }),
+    );
+    let hash = details["plan_hash"].as_str().expect("plan hash");
+    assert_eq!(hash, approval_fingerprint(&plan, &details));
+
+    let comment = WorkPlanComment::new(
+        "https://github.com/acme/widgets/runs/42",
+        vec![PlanItem::new("repair", "Apply typed patch", ItemStatus::Pending).unwrap()],
+    )
+    .unwrap()
+    .with_approval_hash(hash)
+    .unwrap();
+    assert!(comment.render().unwrap().contains(&format!("`{hash}`")));
+
+    let approved = json!({
+        "head_sha": "abc123",
+        "proposed_patches": [{"path": "src/lib.rs", "patch": "@@ -1 +1 @@"}],
+        "approval_details": details,
+        "approved": true,
+        "approved_hash": hash,
+    });
+    assert!(plan_is_approved(&approved));
+
+    let changed = json!({
+        "head_sha": "abc123",
+        "proposed_patches": [{"path": "src/main.rs", "patch": "@@ -1 +1 @@"}],
+        "approval_details": approved["approval_details"].clone(),
+        "approved": true,
+        "approved_hash": hash,
+    });
+    assert!(!plan_is_approved(&changed));
 }
 
 #[test]

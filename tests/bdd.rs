@@ -8,17 +8,20 @@ use pitools::{
         Feedback, FeedbackReply, FeedbackReplyTarget, RepairDecision, RepairDisposition,
         render_feedback_reply, repair_feedback,
     },
-    github::manifest::validate_manifest_code,
-    github::{client::actions_job_id_from_details_url, events::DeliveryEnvelope},
+    github::manifest::{AppManifest, validate_manifest_code},
+    github::{
+        client::actions_job_id_from_details_url,
+        events::{AccessLifecycle, DeliveryEnvelope},
+    },
     models::{
         CheckConclusion, CheckSnapshot, CheckStatus, FeedbackSnapshot, ReadinessInput,
         ReadinessReason, ReadinessSnapshot,
     },
-    pi::PiJobRequest,
+    pi::{PiJobRequest, PiSnapshotFile},
     policy::Policy,
     pr_controls::{
         ControlAction, ControlRequest, FinalSummary, ItemStatus, PlanItem, RunState, RunStatus,
-        WorkPlanComment, apply_control,
+        WorkPlanComment, apply_control, bind_approval_details,
     },
     readiness::evaluate,
     webhook::verify_signature,
@@ -31,6 +34,7 @@ struct World {
     secret_exposed: bool,
     watched: bool,
     processed_delivery_ids: HashSet<String>,
+    access_lifecycle: Option<AccessLifecycle>,
     unauthorized: bool,
     work_plan: Option<RunState>,
     work_plan_status: Option<RunStatus>,
@@ -41,6 +45,7 @@ struct World {
     feedback_target: Option<String>,
     feedback_reply: Option<String>,
     manifest_code_rejected: bool,
+    manifest_admin_permission: bool,
     operator_commands_exposed: bool,
     rebase_default_rejected: bool,
     rebase_explicit_allowed: bool,
@@ -59,6 +64,19 @@ struct World {
 
 #[given("a PiTools work plan is about to start")]
 fn work_plan_is_about_to_start(world: &mut World) {
+    let plan = json!({
+        "head_sha": "abc123",
+        "work": ["ci-repair"]
+    });
+    let approval_details = bind_approval_details(
+        &plan,
+        json!({
+            "summary": "Diagnose the failed Actions check"
+        }),
+    );
+    let approval_hash = approval_details["plan_hash"]
+        .as_str()
+        .expect("approval hash");
     world.notification_body = Some(
         WorkPlanComment::new(
             "https://github.com/acme/widgets/check-runs/42",
@@ -72,6 +90,8 @@ fn work_plan_is_about_to_start(world: &mut World) {
             ],
         )
         .expect("work-plan comment")
+        .with_approval_hash(approval_hash)
+        .expect("approval fingerprint")
         .render()
         .expect("render work-plan comment"),
     );
@@ -91,6 +111,7 @@ fn work_plan_comment_exposes_plan_and_controls(world: &mut World) {
     assert!(body.contains("approve planned work"));
     assert!(body.contains("skip the current item"));
     assert!(body.contains("cancel the run"));
+    assert!(body.contains("Approval fingerprint: `sha256:"));
 }
 
 #[given("a PiTools run has completed with changes and validation")]
@@ -128,11 +149,20 @@ fn ready_readiness_input() -> ReadinessInput {
         branch_is_current: true,
         required_checks: vec![CheckSnapshot {
             name: "check".into(),
+            app_id: None,
+            required_app_id: None,
             status: CheckStatus::Completed,
             conclusion: Some(CheckConclusion::Success),
             required: true,
         }],
         approved: true,
+        approval_count: 1,
+        required_approval_count: 0,
+        stale_approval_present: false,
+        last_push_approval_required: false,
+        latest_push_approval: true,
+        code_owner_review_required: false,
+        code_owner_review_satisfied: true,
         unresolved_feedback: Vec::new(),
         is_draft: false,
     }
@@ -172,6 +202,16 @@ fn missing_required_approval(world: &mut World) {
         .as_mut()
         .expect("readiness input")
         .approved = false;
+}
+
+#[given("the protected branch requires two approvals and has a stale review")]
+fn protected_branch_requires_two_approvals(world: &mut World) {
+    let input = world.readiness_input.as_mut().expect("readiness input");
+    input.approval_count = 1;
+    input.required_approval_count = 2;
+    input.last_push_approval_required = true;
+    input.latest_push_approval = false;
+    input.stale_approval_present = true;
 }
 
 #[given("the pull request has unresolved configured automation feedback")]
@@ -238,6 +278,16 @@ fn readiness_includes_pending_check(world: &mut World) {
 #[then("the readiness reason includes a missing required review")]
 fn readiness_includes_missing_review(world: &mut World) {
     readiness_has_reason(world, ReadinessReason::RequiredReviewMissing);
+}
+
+#[then("the readiness reason includes an insufficient review count")]
+fn readiness_includes_insufficient_review_count(world: &mut World) {
+    readiness_has_reason(world, ReadinessReason::RequiredReviewCountMissing);
+}
+
+#[then("the readiness reason includes a stale review")]
+fn readiness_includes_stale_review(world: &mut World) {
+    readiness_has_reason(world, ReadinessReason::StaleReview);
 }
 
 #[then("the readiness reason includes unresolved automation feedback")]
@@ -368,6 +418,62 @@ fn records_both_deliveries(_world: &mut World) {}
 #[then("only one event is processed")]
 fn one_event_processed(world: &mut World) {
     assert_eq!(world.processed_delivery_ids.len(), 1);
+}
+
+#[given("a GitHub App installation suspension delivery")]
+fn installation_suspension_delivery(world: &mut World) {
+    let payload = json!({
+        "action": "suspend",
+        "installation": {"id": 9, "account": {"login": "Titanicar-US"}}
+    });
+    world.access_lifecycle = Some(
+        DeliveryEnvelope::from_payload(
+            "installation-suspend".into(),
+            "installation".into(),
+            payload.clone(),
+            serde_json::to_vec(&payload).expect("serialize suspension"),
+        )
+        .access_lifecycle()
+        .expect("suspension lifecycle"),
+    );
+}
+
+#[given("a GitHub App repository removal delivery")]
+fn repository_removal_delivery(world: &mut World) {
+    let payload = json!({
+        "action": "removed",
+        "installation": {"id": 9},
+        "repositories_removed": [{"id": 42}]
+    });
+    world.access_lifecycle = Some(
+        DeliveryEnvelope::from_payload(
+            "repository-removed".into(),
+            "installation_repositories".into(),
+            payload.clone(),
+            serde_json::to_vec(&payload).expect("serialize removal"),
+        )
+        .access_lifecycle()
+        .expect("repository removal lifecycle"),
+    );
+}
+
+#[when("PiTools classifies the installation lifecycle")]
+fn classifies_installation_lifecycle(_world: &mut World) {}
+
+#[then("reconciliation is deactivated for the installation")]
+fn installation_reconciliation_is_deactivated(world: &mut World) {
+    assert!(matches!(
+        world.access_lifecycle,
+        Some(AccessLifecycle::SuspendInstallation | AccessLifecycle::DeleteInstallation)
+    ));
+}
+
+#[then("reconciliation is deactivated for the repository")]
+fn repository_reconciliation_is_deactivated(world: &mut World) {
+    assert_eq!(
+        world.access_lifecycle,
+        Some(AccessLifecycle::RemoveRepositories)
+    );
 }
 
 #[given("a webhook with an invalid X-Hub-Signature-256 header")]
@@ -606,6 +712,29 @@ fn pi_request_with_non_canonical_snapshot_path(world: &mut World) {
         job_id: uuid::Uuid::now_v7(),
         repository: "example/repo".into(),
         snapshot_path: "/workspace/repo".into(),
+        snapshot_files: vec![PiSnapshotFile {
+            path: "src/lib.rs".into(),
+            content: "fn main() {}\n".into(),
+        }],
+        allowed_paths: vec!["src/lib.rs".into()],
+        failure_evidence: None,
+        policy_revision: "sha256:policy".into(),
+        nonce: "nonce".into(),
+    };
+    world.pi_request_rejected = request.validate().is_err();
+}
+
+#[given("a Pi worker request with an unallowlisted snapshot file")]
+fn pi_request_with_unallowlisted_snapshot_file(world: &mut World) {
+    let request = PiJobRequest {
+        protocol_version: "pitools.pi/v1".into(),
+        job_id: uuid::Uuid::now_v7(),
+        repository: "example/repo".into(),
+        snapshot_path: "snapshot.json".into(),
+        snapshot_files: vec![PiSnapshotFile {
+            path: "README.md".into(),
+            content: "source".into(),
+        }],
         allowed_paths: vec!["src/lib.rs".into()],
         failure_evidence: None,
         policy_revision: "sha256:policy".into(),
@@ -815,6 +944,23 @@ fn validates_manifest_code(_world: &mut World) {}
 #[then("the manifest conversion is rejected before any network request")]
 fn manifest_code_is_rejected(world: &mut World) {
     assert!(world.manifest_code_rejected);
+}
+
+#[given("the public GitHub App manifest")]
+fn public_github_app_manifest(world: &mut World) {
+    world.manifest_admin_permission = false;
+}
+
+#[when("PiTools validates its default permissions")]
+fn validates_manifest_permissions(world: &mut World) {
+    let manifest = AppManifest::for_public_project("https://pitools.example.test");
+    world.manifest_admin_permission = manifest.validate().is_ok()
+        && manifest.default_permissions.get("administration") == Some(&"read".to_owned());
+}
+
+#[then("the manifest requests administration read permission")]
+fn manifest_requests_administration_read(world: &mut World) {
+    assert!(world.manifest_admin_permission);
 }
 
 #[tokio::test]

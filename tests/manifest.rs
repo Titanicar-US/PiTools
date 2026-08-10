@@ -10,6 +10,10 @@ fn public_manifest_contains_the_full_watch_and_repair_contract() {
         manifest.hook_attributes.url,
         "https://pitools.example.test/github/webhook"
     );
+    assert_eq!(
+        manifest.default_permissions.get("administration"),
+        Some(&"read".to_owned())
+    );
     assert_eq!(manifest.default_permissions["checks"], "write");
     assert_eq!(manifest.default_permissions["contents"], "write");
     assert!(

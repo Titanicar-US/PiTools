@@ -67,7 +67,7 @@ impl WorkCoordinator {
                     details_url: None,
                     output: CheckRunOutput {
                         title: "PiTools is working".into(),
-                        summary: "The approved work plan is running. Use the requested actions to skip the current item or cancel the run.".into(),
+                        summary: "PiTools is preparing the displayed work plan. Use the requested actions to approve, skip the current item, or cancel the run.".into(),
                         text: None,
                     },
                     actions: vec![
@@ -179,7 +179,24 @@ impl WorkCoordinator {
         repository: &str,
         items: Vec<PlanItem>,
     ) -> Result<(), WorkflowError> {
+        self.update_progress_with_approval(handle, owner, repository, items, None)
+            .await
+    }
+
+    pub async fn update_progress_with_approval(
+        &self,
+        handle: &WorkHandle,
+        owner: &str,
+        repository: &str,
+        items: Vec<PlanItem>,
+        approval_hash: Option<&str>,
+    ) -> Result<(), WorkflowError> {
         let comment = WorkPlanComment::new(&handle.check_run_url, items)?;
+        let comment = if let Some(approval_hash) = approval_hash {
+            comment.with_approval_hash(approval_hash)?
+        } else {
+            comment
+        };
         let body = comment.render()?;
         self.github
             .update_issue_comment(owner, repository, handle.comment_id, &body)

@@ -65,6 +65,11 @@ Feature: pull request work-plan controls
     When PiTools validates the Pi worker request
     Then the Pi worker request is rejected before provider execution
 
+  Scenario: Pi worker rejects an unallowlisted source snapshot
+    Given a Pi worker request with an unallowlisted snapshot file
+    When PiTools validates the Pi worker request
+    Then the Pi worker request is rejected before provider execution
+
   Scenario: operator metrics expose low-cardinality webhook counters
     Given PiTools has received a webhook
     When the operator reads Prometheus metrics

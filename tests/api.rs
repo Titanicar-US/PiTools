@@ -18,7 +18,12 @@ fn state() -> AppState {
 
 #[tokio::test]
 async fn operator_read_routes_require_admin_authorization() {
-    for uri in ["/api/v1/events", "/api/v1/audit", "/api/v1/watchlist/42/7"] {
+    for uri in [
+        "/api/v1/events",
+        "/api/v1/audit",
+        "/api/v1/watchlist/42/7",
+        "/api/v1/watchlist/42/7/history",
+    ] {
         let response = web::router_with_state(state())
             .oneshot(
                 Request::builder()

@@ -28,9 +28,12 @@ use crate::{
         manifest::default_permissions,
     },
     models::{PullRequestSnapshot, PullRequestState},
-    pi::{NatsPiWorker, PiJobRequest, PiJobResult},
+    pi::{
+        MAX_PI_SNAPSHOT_BYTES, MAX_PI_SNAPSHOT_FILE_BYTES, MAX_PI_SNAPSHOT_FILES, NatsPiWorker,
+        PiJobRequest, PiJobResult, PiSnapshotFile,
+    },
     policy::Policy,
-    pr_controls::{FinalSummary, ItemStatus, PlanItem},
+    pr_controls::{FinalSummary, ItemStatus, PlanItem, bind_approval_details},
     queue::{JobKind, JobQueue, JobSpec, LeasedJob},
     readiness,
     reconcile::reconcile_read_set,
@@ -309,20 +312,30 @@ impl WorkerRuntime {
                     .unwrap_or(false)
                 {
                     self.ensure_lease(worker_id, job).await?;
+                    let raw_details = result
+                        .get("approval_details")
+                        .cloned()
+                        .unwrap_or_else(|| json!({}));
+                    let details = bind_approval_details(&job.plan, raw_details);
+                    let approval_hash = details
+                        .get("plan_hash")
+                        .and_then(serde_json::Value::as_str)
+                        .ok_or_else(|| {
+                            WorkerError::PlanSerialization(
+                                "approval details did not contain a plan hash".into(),
+                            )
+                        })?;
                     if let Some(handle) = handle.as_ref() {
                         coordinator
-                            .update_progress(
+                            .update_progress_with_approval(
                                 handle,
                                 &repository.owner,
                                 &repository.name,
                                 plan_items_for_job(job, ItemStatus::Pending)?,
+                                Some(approval_hash),
                             )
                             .await?;
                     }
-                    let details = result
-                        .get("approval_details")
-                        .cloned()
-                        .unwrap_or_else(|| json!({}));
                     if !self
                         .queue
                         .mark_waiting_approval(job.id, worker_id, job.lease_token, details)
@@ -686,7 +699,7 @@ impl WorkerRuntime {
             serde_json::from_value::<PiJobResult>(value.clone())
                 .map_err(|error| WorkerError::PlanSerialization(error.to_string()))?
         } else {
-            self.pi_diagnosis(github, context.repository, context.policy, job)
+            self.pi_diagnosis(github, context, context.policy, job)
                 .await?
         };
         if pi_result.proposed_patches.is_empty() {
@@ -875,7 +888,15 @@ impl WorkerRuntime {
                 explicit_parent: policy.stack_parents.get(&context.number).copied(),
             })
             .collect();
-        if let Ok(stack_plan) = StackPlanner::plan(&stack_pull_requests)
+        let stack_component = StackPlanner::partition(&stack_pull_requests)
+            .into_iter()
+            .find(|component| {
+                component
+                    .iter()
+                    .any(|candidate| candidate.number == pull_request.number)
+            })
+            .unwrap_or_default();
+        if let Ok(stack_plan) = StackPlanner::plan(&stack_component)
             && stack_plan.merge_order.len() > 1
             && stack_plan.merge_order.last().copied() == Some(pull_request.number)
         {
@@ -886,7 +907,7 @@ impl WorkerRuntime {
                     kind: JobKind::StackRebase,
                     plan: json!({
                         "source": "reconcile",
-                        "pull_requests": stack_pull_requests,
+                        "pull_requests": stack_component,
                         "stack_plan": stack_plan,
                         "head_sha": pull_request.head_sha.clone(),
                         "policy_revision": policy.revision(),
@@ -927,7 +948,7 @@ impl WorkerRuntime {
                 )));
             }
             match current.base.reference.as_deref() {
-                Some(base) if base == update.from_branch => pending_updates.push(update),
+                Some(base) if base == update.from_branch => pending_updates.push(update.clone()),
                 Some(base) if base == update.to_branch => {}
                 Some(base) => {
                     return Err(WorkerError::MutationAdmissionRequired(format!(
@@ -945,27 +966,6 @@ impl WorkerRuntime {
         }
         let mut changes =
             vec!["computed a deterministic base-most to tip-most stack order".to_owned()];
-        for update in pending_updates {
-            lease.ensure().await?;
-            let updated = github
-                .update_pull_request_base(
-                    &repository.owner,
-                    &repository.name,
-                    update.pull_request,
-                    &update.to_branch,
-                )
-                .await?;
-            if updated.base.reference.as_deref() != Some(update.to_branch.as_str()) {
-                return Err(WorkerError::MutationAdmissionRequired(format!(
-                    "GitHub did not confirm base update for pull request {}",
-                    update.pull_request
-                )));
-            }
-            changes.push(format!(
-                "updated pull request {} base from {} to {}",
-                update.pull_request, update.from_branch, update.to_branch
-            ));
-        }
         let by_number: BTreeMap<i32, &StackPullRequest> = pull_requests
             .iter()
             .map(|pull_request| (pull_request.number, pull_request))
@@ -1030,7 +1030,12 @@ impl WorkerRuntime {
                     "pull request {number} base branch is unavailable"
                 ))
             })?;
-            if current_base != target_branch {
+            let base_update_is_pending = stack_plan.required_base_updates.iter().any(|update| {
+                update.pull_request == *number
+                    && update.from_branch == current_base
+                    && update.to_branch == target_branch
+            });
+            if current_base != target_branch && !base_update_is_pending {
                 blockers.push(format!(
                     "pull request {number} base is {current_base}, expected {target_branch}"
                 ));
@@ -1089,6 +1094,33 @@ impl WorkerRuntime {
             }
         }
 
+        // Do not mutate GitHub PR bases until every branch rebase has completed
+        // its safety checks. A conflict or changed head therefore cannot leave a
+        // partially rewritten stack of PR base references behind.
+        if blockers.is_empty() {
+            for update in pending_updates {
+                lease.ensure().await?;
+                let updated = github
+                    .update_pull_request_base(
+                        &repository.owner,
+                        &repository.name,
+                        update.pull_request,
+                        &update.to_branch,
+                    )
+                    .await?;
+                if updated.base.reference.as_deref() != Some(update.to_branch.as_str()) {
+                    return Err(WorkerError::MutationAdmissionRequired(format!(
+                        "GitHub did not confirm base update for pull request {}",
+                        update.pull_request
+                    )));
+                }
+                changes.push(format!(
+                    "updated pull request {} base from {} to {}",
+                    update.pull_request, update.from_branch, update.to_branch
+                ));
+            }
+        }
+
         Ok(json!({
             "completed": blockers.is_empty(),
             "changes": changes,
@@ -1102,19 +1134,51 @@ impl WorkerRuntime {
     async fn pi_diagnosis(
         &self,
         github: &GitHubClient,
-        repository: &RepositoryContext,
+        context: &CiRepairContext<'_>,
         policy: &Policy,
         job: &LeasedJob,
     ) -> Result<PiJobResult, WorkerError> {
         let Some(pi_worker) = &self.pi_worker else {
             return Err(WorkerError::PiUnavailable);
         };
-        let failure_evidence = self.ci_failure_evidence(github, repository, job).await?;
+        let failure_evidence = self
+            .ci_failure_evidence(github, context.repository, job)
+            .await?;
+        let mut snapshot_files = Vec::new();
+        let mut snapshot_bytes = 0;
+        for path in policy
+            .repair_allowed_paths
+            .iter()
+            .take(MAX_PI_SNAPSHOT_FILES)
+        {
+            context.lease.ensure().await?;
+            let Some(content) = github
+                .get_repository_file(
+                    &context.repository.owner,
+                    &context.repository.name,
+                    path,
+                    &context.pull_request.head_sha,
+                    MAX_PI_SNAPSHOT_FILE_BYTES,
+                )
+                .await?
+            else {
+                continue;
+            };
+            if snapshot_bytes + content.len() > MAX_PI_SNAPSHOT_BYTES {
+                break;
+            }
+            snapshot_bytes += content.len();
+            snapshot_files.push(PiSnapshotFile {
+                path: path.clone(),
+                content,
+            });
+        }
         let request = PiJobRequest {
             protocol_version: "pitools.pi/v1".into(),
             job_id: job.id,
-            repository: format!("{}/{}", repository.owner, repository.name),
+            repository: format!("{}/{}", context.repository.owner, context.repository.name),
             snapshot_path: "snapshot.json".into(),
+            snapshot_files,
             allowed_paths: policy.repair_allowed_paths.clone(),
             failure_evidence: Some(failure_evidence),
             policy_revision: policy.revision(),
@@ -1296,9 +1360,7 @@ fn is_deterministic_feedback_rejection(error: &crate::workspace::WorkspaceError)
 }
 
 fn plan_is_approved(plan: &serde_json::Value) -> bool {
-    plan.get("approved")
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(false)
+    crate::pr_controls::plan_is_approved(plan)
 }
 
 fn plan_item_is_skipped(plan: &serde_json::Value, item_id: &str) -> bool {
@@ -1373,6 +1435,10 @@ fn waiting_for_approval(summary: &str, blocker: &str) -> serde_json::Value {
     json!({
         "completed": false,
         "waiting_approval": true,
+        "approval_details": {
+            "summary": summary,
+            "blocker": blocker,
+        },
         "changes": [summary],
         "tests": [],
         "remaining_blockers": [blocker],

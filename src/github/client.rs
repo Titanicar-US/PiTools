@@ -410,6 +410,78 @@ impl GitHubClient {
             .map_err(|error| GitHubClientError::Response(error.to_string()))
     }
 
+    pub async fn get_repository_file(
+        &self,
+        owner: &str,
+        repository: &str,
+        path: &str,
+        reference: &str,
+        max_bytes: usize,
+    ) -> Result<Option<String>, GitHubClientError> {
+        validate_repository_file_path(path)?;
+        if max_bytes == 0 {
+            return Err(GitHubClientError::RepositoryFileTooLarge);
+        }
+        let mut url = self
+            .api_base
+            .join(&format!("repos/{owner}/{repository}/contents"))
+            .map_err(|error| GitHubClientError::Client(error.to_string()))?;
+        {
+            let mut segments = url
+                .path_segments_mut()
+                .map_err(|_| GitHubClientError::Client("GitHub API URL cannot be a base".into()))?;
+            for segment in path.split('/') {
+                segments.push(segment);
+            }
+        }
+        url.query_pairs_mut().append_pair("ref", reference);
+        let response = self
+            .client
+            .get(url)
+            .bearer_auth(self.token.token.expose_secret())
+            .header(header::ACCEPT, "application/vnd.github.raw+json")
+            .header("x-github-api-version", "2022-11-28")
+            .send()
+            .await
+            .map_err(|error| {
+                GitHubClientError::Request(redact(
+                    error.to_string(),
+                    self.token.token.expose_secret(),
+                ))
+            })?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        if !response.status().is_success() {
+            let status = response.status();
+            return Err(GitHubClientError::Api {
+                status: status.as_u16(),
+                body: redact(
+                    response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "unreadable response".into()),
+                    self.token.token.expose_secret(),
+                ),
+            });
+        }
+        let mut body = Vec::new();
+        let mut response = response;
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|error| GitHubClientError::Response(error.to_string()))?
+        {
+            if body.len() + chunk.len() > max_bytes {
+                return Err(GitHubClientError::RepositoryFileTooLarge);
+            }
+            body.extend_from_slice(&chunk);
+        }
+        String::from_utf8(body)
+            .map(Some)
+            .map_err(|error| GitHubClientError::Response(error.to_string()))
+    }
+
     pub async fn read_pull_request(
         &self,
         owner: &str,
@@ -685,6 +757,8 @@ pub struct GitHubPullRequest {
     pub state: Option<String>,
     #[serde(default)]
     pub merged: Option<bool>,
+    #[serde(default)]
+    pub mergeable_state: Option<String>,
     pub mergeable: Option<bool>,
     pub head: GitHubPullRequestBranch,
     pub base: GitHubPullRequestBranch,
@@ -734,6 +808,8 @@ pub struct PullRequestReview {
     pub body: Option<String>,
     pub state: String,
     pub submitted_at: Option<String>,
+    #[serde(default)]
+    pub commit_id: Option<String>,
     pub user: GitHubCommentAuthor,
 }
 
@@ -814,6 +890,20 @@ pub struct BranchCommit {
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
 pub struct BranchProtection {
     pub required_status_checks: Option<RequiredStatusChecks>,
+    #[serde(default)]
+    pub required_pull_request_reviews: Option<RequiredPullRequestReviews>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+pub struct RequiredPullRequestReviews {
+    #[serde(default)]
+    pub dismiss_stale_reviews: bool,
+    #[serde(default)]
+    pub require_code_owner_reviews: bool,
+    #[serde(default)]
+    pub required_approving_review_count: usize,
+    #[serde(default)]
+    pub require_last_push_approval: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -1075,6 +1165,21 @@ fn redact(value: String, token: &str) -> String {
         value.replace(token, "[REDACTED]")
     };
     redacted.chars().take(4096).collect()
+}
+
+fn validate_repository_file_path(path: &str) -> Result<(), GitHubClientError> {
+    if path.is_empty()
+        || path.starts_with('/')
+        || path.contains(['\\', '\0', '\r', '\n'])
+        || path
+            .split('/')
+            .any(|segment| segment.is_empty() || segment == "." || segment == "..")
+    {
+        return Err(GitHubClientError::Response(
+            "repository file path is not canonical".into(),
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]
