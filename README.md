@@ -51,6 +51,8 @@ The Skip and Cancel actions remain available while a plan is waiting for approva
 
 The `Dockerfile`, `runner/`, `workers/pi/`, and `helm/pitools/` directories provide the application packaging. Local Compose is for development and acceptance only. The protected `build-image` workflow publishes multi-architecture core and runner images on approved `v*` tags and records immutable GHCR digests in its job summaries. Production dev01 integration is owned by the Flux infrastructure repository and should consume those digests through the Helm chart with external PostgreSQL and NATS endpoints.
 
+After a human merges the validated PR into `main`, publish an explicit release from the canonical repository with `make publish PITOOLS_RELEASE_TAG=v0.1.0 PITOOLS_PUBLISH_CONFIRM=yes`. The command only accepts stable semantic-version tags, requires the confirmation flag, creates the GitHub release against `main`, and lets the protected image workflow produce the immutable digests for the Flux handoff. It is intentionally not run during local validation.
+
 The server exposes low-cardinality Prometheus counters at `/metrics`; keep that route internal to the dev01 monitoring network when the ingress is configured.
 
 ## License

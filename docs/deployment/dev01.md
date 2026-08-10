@@ -121,6 +121,8 @@ Use namespace/pod selectors instead of CIDRs when PostgreSQL or NATS is in-clust
 
 Run the protected `build-image` workflow from an approved `v*` tag. Its `publish-image` matrix publishes multi-architecture `pitools` and `pitools-runner` images to GHCR and records each immutable manifest digest in the corresponding GitHub Actions job summary. Copy those exact `ghcr.io/<owner>/<image>@sha256:<digest>` references into the Flux values change; do not use a mutable tag in dev01. The `validate-image` jobs build with `push: false` and are not image-publication evidence.
 
+From a checkout of the merged `main` branch, the repository release helper can create the protected release that drives this workflow: `make publish PITOOLS_RELEASE_TAG=v0.1.0 PITOOLS_PUBLISH_CONFIRM=yes`. It refuses non-semver tags, missing confirmation, and non-canonical repositories. Do not run it until the human merge and release authorization are complete.
+
 ## Database migration gate
 
 The server connects to PostgreSQL and runs the embedded SQLx migrations before it binds the HTTP listener. Before reconciliation, the application and database owners must review the exact migrations in the candidate image, confirm backup/restore readiness and compatibility with the previous image, and authorize this startup-time migration model. Keep the first rollout at one replica and record the migration identifier and outcome. The chart deliberately does not add a second migration Job or ad hoc SQL path.

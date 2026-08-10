@@ -13,4 +13,5 @@
 - Added low-cardinality Prometheus counters at the internal `/metrics` endpoint.
 - Added bounded operator API reads for PR detail, webhook delivery metadata, and audit entries, plus matching CLI watchlist/events/audit/cancel commands.
 - Hardened the release workflow with Node 24-compatible action pins and explicit immutable core/runner digest summaries for the dev01 Flux handoff.
+- Added a confirmation-gated release helper that targets canonical `main` and drives the protected image publication workflow.
 - Updated pinned GitHub Actions to current Node 24-compatible major releases after hosted CI reported the Node 20 deprecation warning.

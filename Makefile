@@ -1,5 +1,9 @@
 .PHONY: install check check-full quality-gates clean build publish
 
+PITOOLS_REPOSITORY ?= Titanicar-US/PiTools
+PITOOLS_RELEASE_TAG ?=
+PITOOLS_PUBLISH_CONFIRM ?=
+
 install:
 	cargo fetch --locked
 	npm --prefix workers/pi ci
@@ -9,6 +13,7 @@ check:
 	cargo clippy --locked --all-targets --all-features -- -D warnings
 	cargo test --locked
 	npm --prefix workers/pi run check
+	bash tests/publish_contract.sh
 
 check-full:
 	cargo test --locked --all-features
@@ -28,5 +33,7 @@ build:
 	npm --prefix workers/pi run build
 
 publish:
-	@echo "Publish is intentionally explicit; build artifacts and a registry target are required."
-	@false
+	@PITOOLS_REPOSITORY="$(PITOOLS_REPOSITORY)" \
+		PITOOLS_RELEASE_TAG="$(PITOOLS_RELEASE_TAG)" \
+		PITOOLS_PUBLISH_CONFIRM="$(PITOOLS_PUBLISH_CONFIRM)" \
+		bash scripts/publish-release.sh
