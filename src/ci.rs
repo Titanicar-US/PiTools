@@ -355,6 +355,133 @@ pub async fn run_validation_commands(
     Ok(results)
 }
 
+/// Build the command used to run repository validation without the control
+/// plane filesystem or network namespace.
+///
+/// The runtime image must provide bubblewrap at `/usr/bin/bwrap`. A missing
+/// sandbox executable is intentionally a deployment failure, not a reason to
+/// fall back to running repository code beside GitHub credentials.
+pub fn validation_sandbox_argv(
+    worktree: &Path,
+    command: &[String],
+) -> Result<Vec<String>, CiError> {
+    if !worktree.is_absolute()
+        || worktree.as_os_str().is_empty()
+        || worktree.to_string_lossy().contains(['\0', '\r', '\n'])
+    {
+        return Err(CiError::InvalidWorktree(worktree.display().to_string()));
+    }
+    let (program, _) = command.split_first().ok_or(CiError::EmptyCommand)?;
+    if command
+        .iter()
+        .any(|value| value.contains(['\0', '\r', '\n']))
+    {
+        return Err(CiError::UnsafeCommand);
+    }
+
+    let mut argv = vec![
+        "/usr/bin/bwrap".to_owned(),
+        "--die-with-parent".to_owned(),
+        "--unshare-all".to_owned(),
+        "--new-session".to_owned(),
+        "--tmpfs".to_owned(),
+        "/".to_owned(),
+        "--dir".to_owned(),
+        "/usr".to_owned(),
+        "--ro-bind".to_owned(),
+        "/usr".to_owned(),
+        "/usr".to_owned(),
+        "--symlink".to_owned(),
+        "usr/bin".to_owned(),
+        "/bin".to_owned(),
+        "--symlink".to_owned(),
+        "usr/sbin".to_owned(),
+        "/sbin".to_owned(),
+        "--dir".to_owned(),
+        "/lib".to_owned(),
+        "--ro-bind".to_owned(),
+        "/lib".to_owned(),
+        "/lib".to_owned(),
+        "--dir".to_owned(),
+        "/lib64".to_owned(),
+        "--ro-bind".to_owned(),
+        "/lib64".to_owned(),
+        "/lib64".to_owned(),
+        "--dir".to_owned(),
+        "/etc".to_owned(),
+        "--ro-bind".to_owned(),
+        "/etc".to_owned(),
+        "/etc".to_owned(),
+        "--dev".to_owned(),
+        "/dev".to_owned(),
+        "--proc".to_owned(),
+        "/proc".to_owned(),
+        "--tmpfs".to_owned(),
+        "/tmp".to_owned(),
+        "--dir".to_owned(),
+        "/tmp/home".to_owned(),
+        "--dir".to_owned(),
+        "/workspace".to_owned(),
+        "--bind".to_owned(),
+        worktree.to_string_lossy().into_owned(),
+        "/workspace".to_owned(),
+        "--chdir".to_owned(),
+        "/workspace".to_owned(),
+        "--setenv".to_owned(),
+        "CI".to_owned(),
+        "1".to_owned(),
+        "--setenv".to_owned(),
+        "HOME".to_owned(),
+        "/tmp/home".to_owned(),
+        "--setenv".to_owned(),
+        "TMPDIR".to_owned(),
+        "/tmp".to_owned(),
+        "--setenv".to_owned(),
+        "PATH".to_owned(),
+        "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin".to_owned(),
+        "--setenv".to_owned(),
+        "GIT_TERMINAL_PROMPT".to_owned(),
+        "0".to_owned(),
+        "--setenv".to_owned(),
+        "GIT_CONFIG_NOSYSTEM".to_owned(),
+        "1".to_owned(),
+        "--unshare-net".to_owned(),
+        "--".to_owned(),
+        program.clone(),
+    ];
+    argv.extend(command.iter().skip(1).cloned());
+    Ok(argv)
+}
+
+/// Run configured validation in a credential-free, network-isolated sandbox.
+pub async fn run_validation_commands_sandboxed(
+    worktree: &Path,
+    commands: &[ValidationCommand],
+    timeout_duration: Duration,
+) -> Result<Vec<CommandResult>, CiError> {
+    if commands.is_empty() {
+        return Err(CiError::NoValidationCommands);
+    }
+    let mut results = Vec::with_capacity(commands.len());
+    for command in commands {
+        let argv = command
+            .argv()
+            .iter()
+            .map(|value| (*value).to_owned())
+            .collect::<Vec<_>>();
+        let sandbox_argv = validation_sandbox_argv(worktree, &argv)?;
+        let mut result =
+            run_bounded_argv(Path::new("/"), &sandbox_argv, timeout_duration, &[]).await?;
+        result.argv = argv;
+        let success = result.success;
+        results.push(result);
+        if !success {
+            break;
+        }
+    }
+    Ok(results)
+}
+
 /// Run a fixed, internally generated argv with a scrubbed environment.
 ///
 /// Callers must pass an allowlisted executable and arguments. This function

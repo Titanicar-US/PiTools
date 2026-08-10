@@ -1,4 +1,6 @@
-use pitools::workspace::{RepositoryWorkspace, rebase_push_argv, remote_head_argv};
+use pitools::workspace::{
+    RepositoryWorkspace, rebase_push_argv, remote_head_argv, validate_staged_paths,
+};
 use secrecy::SecretString;
 
 #[tokio::test]
@@ -72,6 +74,13 @@ fn rebase_push_rejects_branch_argument_injection() {
     let ref_error = rebase_push_argv("feature:bad", "0123456789abcdef", true)
         .expect_err("git ref syntax must be rejected");
     assert!(ref_error.to_string().contains("invalid branch"));
+}
+
+#[test]
+fn staged_paths_must_match_the_approved_mutation_set_exactly() {
+    validate_staged_paths(&["src/lib.rs".into()], "src/lib.rs\n").expect("exact staged path set");
+    assert!(validate_staged_paths(&["src/lib.rs".into()], "src/lib.rs\nsrc/secret\n").is_err());
+    assert!(validate_staged_paths(&["src/lib.rs".into()], "src/secret\n").is_err());
 }
 
 #[test]

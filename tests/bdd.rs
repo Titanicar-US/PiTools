@@ -1,6 +1,6 @@
 //! Executable Gherkin coverage for the public bootstrap and webhook contracts.
 
-use std::{collections::HashSet, fs, process::Command};
+use std::{collections::HashSet, fs, path::Path, process::Command};
 
 use cucumber::{World as _, given, then, when};
 use pitools::{
@@ -48,6 +48,7 @@ struct World {
     actions_job_id: Option<i64>,
     ci_admission_rejected: bool,
     ci_repairable: bool,
+    validation_sandbox: Option<Vec<String>>,
     pi_request_rejected: bool,
     metrics_body: Option<String>,
     readiness_input: Option<ReadinessInput>,
@@ -570,6 +571,32 @@ fn classifies_check_conclusion_for_repair(world: &mut World) {
 #[then("the CI repair path accepts the check conclusion")]
 fn ci_repair_path_accepts_check_conclusion(world: &mut World) {
     assert!(world.ci_repairable);
+}
+
+#[given("a repository validation sandbox command")]
+fn repository_validation_sandbox_command(world: &mut World) {
+    world.validation_sandbox = None;
+}
+
+#[when("PiTools builds the validation sandbox")]
+fn builds_validation_sandbox(world: &mut World) {
+    world.validation_sandbox = Some(
+        pitools::ci::validation_sandbox_argv(
+            Path::new("/var/lib/pitools/validation"),
+            &["make".into(), "check".into()],
+        )
+        .expect("sandbox command"),
+    );
+}
+
+#[then("the validation sandbox hides control-plane secrets and network access")]
+fn validation_sandbox_hides_secrets_and_network(world: &mut World) {
+    let argv = world.validation_sandbox.as_ref().expect("sandbox command");
+    let rendered = argv.join(" ");
+    assert!(rendered.contains("--unshare-net"));
+    assert!(rendered.contains("--tmpfs /"));
+    assert!(!rendered.contains("/run/secrets"));
+    assert!(!rendered.contains("GITHUB_PRIVATE_KEY_PATH"));
 }
 
 #[given("a Pi worker request with a non-canonical snapshot path")]

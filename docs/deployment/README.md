@@ -2,9 +2,9 @@
 
 PiTools ships two images and one Helm chart:
 
-- `Dockerfile` builds only the non-root Rust control plane. It contains no Node runtime, Pi source, or worker dependencies.
+- `Dockerfile` builds only the non-root Rust control plane. It contains no Node runtime, Pi source, or worker dependencies, and includes bubblewrap for credential-free repository validation.
 - `runner/Dockerfile` builds the non-root, short-lived Pi repair worker. It has Git and SSH client tooling but no Docker daemon, Kubernetes client, GitHub App private key, webhook secret, or admin token.
-- `helm/pitools` deploys separate HTTP core, Rust durable-worker, and Pi worker workloads. The Rust worker owns GitHub credentials and durable mutations; the Pi worker uses a minimal NATS request/reply transport and receives no application credentials.
+- `helm/pitools` deploys separate HTTP core, Rust durable-worker, and Pi worker workloads. The Rust worker owns GitHub credentials and durable mutations; repository validation is copied into a `.git`-free bubblewrap snapshot with no network namespace and no application-secret mount. The Pi worker uses a minimal NATS request/reply transport and receives no application credentials.
 - PostgreSQL, NATS, application secrets, DNS, TLS, and Flux reconciliation remain externally owned.
 
 The base images are pinned by both readable version tag and multi-platform manifest digest. Refresh a digest only after reviewing the upstream image and rebuilding both architectures used by the target cluster.

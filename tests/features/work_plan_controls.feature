@@ -55,6 +55,11 @@ Feature: pull request work-plan controls
     When PiTools classifies the check conclusion for repair
     Then the CI repair path accepts the check conclusion
 
+  Scenario: repository validation cannot access control-plane credentials
+    Given a repository validation sandbox command
+    When PiTools builds the validation sandbox
+    Then the validation sandbox hides control-plane secrets and network access
+
   Scenario: Pi worker rejects non-canonical snapshot paths
     Given a Pi worker request with a non-canonical snapshot path
     When PiTools validates the Pi worker request

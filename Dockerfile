@@ -14,7 +14,7 @@ ARG PITOOLS_UID=10001
 ARG PITOOLS_GID=10001
 
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends ca-certificates curl git make tini \
+    && apt-get install --yes --no-install-recommends bubblewrap ca-certificates curl git make tar tini \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid "${PITOOLS_GID}" pitools \
     && useradd --uid "${PITOOLS_UID}" --gid "${PITOOLS_GID}" --create-home --shell /usr/sbin/nologin pitools

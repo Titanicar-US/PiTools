@@ -1,6 +1,7 @@
 //! Ephemeral repository workspaces for approved deterministic repairs.
 
 use std::{
+    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
     time::Duration,
@@ -11,7 +12,7 @@ use uuid::Uuid;
 
 use crate::{
     ci::{
-        CiPatch, run_bounded_argv, run_bounded_argv_with_input, run_validation_commands,
+        CiPatch, run_bounded_argv, run_bounded_argv_with_input, run_validation_commands_sandboxed,
         validate_patch_set,
     },
     feedback::{Feedback, RepairDecision, repair_feedback},
@@ -25,6 +26,7 @@ pub struct RepositoryWorkspace {
     root: PathBuf,
     repository_root: PathBuf,
     askpass: PathBuf,
+    remote_url: String,
     username: String,
     password: SecretString,
 }
@@ -45,6 +47,7 @@ impl RepositoryWorkspace {
         let root = std::env::temp_dir().join(format!("pitools-work-{}", Uuid::now_v7()));
         fs::create_dir(&root)?;
         let repository_root = root.join("repo");
+        let clone_url = format!("https://github.com/{owner}/{repository}.git");
         // Use the already-installed pitools executable as the askpass helper.
         // This keeps authentication working when /tmp is deliberately mounted
         // noexec and avoids writing an executable secret helper into a
@@ -54,10 +57,10 @@ impl RepositoryWorkspace {
             root,
             repository_root,
             askpass,
+            remote_url: clone_url.clone(),
             username: "x-access-token".into(),
             password: token,
         };
-        let clone_url = format!("https://github.com/{owner}/{repository}.git");
         let destination = workspace.repository_root.to_string_lossy().into_owned();
         workspace
             .run(
@@ -129,11 +132,14 @@ impl RepositoryWorkspace {
         lease.ensure().await?;
         self.run(
             &self.repository_root,
-            &["git".into(), "add".into(), "--".into(), path],
+            &["git".into(), "add".into(), "--".into(), path.clone()],
         )
         .await?;
-        let validation = run_validation_commands(
-            &self.repository_root,
+        let validation_root = self
+            .prepare_validation_snapshot(std::slice::from_ref(&path))
+            .await?;
+        let validation = run_validation_commands_sandboxed(
+            &validation_root,
             validation_commands,
             WORKSPACE_TIMEOUT,
         )
@@ -144,36 +150,23 @@ impl RepositoryWorkspace {
                 stderr: failed.stderr.clone(),
             });
         }
+        self.ensure_staged_paths(std::slice::from_ref(&path))
+            .await?;
         lease.ensure().await?;
-        self.run(
-            &self.repository_root,
-            &[
-                "git".into(),
-                "config".into(),
-                "user.name".into(),
-                "PiTools[bot]".into(),
-            ],
-        )
-        .await?;
         lease.ensure().await?;
         self.ensure_remote_head(branch, expected_head_sha).await?;
-        lease.ensure().await?;
         self.run(
             &self.repository_root,
             &[
                 "git".into(),
-                "config".into(),
-                "user.email".into(),
-                "pitools[bot]@users.noreply.github.com".into(),
-            ],
-        )
-        .await?;
-        lease.ensure().await?;
-        self.run(
-            &self.repository_root,
-            &[
-                "git".into(),
+                "-c".into(),
+                "core.hooksPath=/dev/null".into(),
+                "-c".into(),
+                "user.name=PiTools[bot]".into(),
+                "-c".into(),
+                "user.email=pitools[bot]@users.noreply.github.com".into(),
                 "commit".into(),
+                "--no-verify".into(),
                 "-m".into(),
                 "fix: apply automated review suggestion".into(),
             ],
@@ -184,7 +177,12 @@ impl RepositoryWorkspace {
             &self.repository_root,
             &[
                 "git".into(),
+                "-c".into(),
+                "core.hooksPath=/dev/null".into(),
+                "-c".into(),
+                format!("remote.origin.url={}", self.remote_url),
                 "push".into(),
+                "--no-verify".into(),
                 "origin".into(),
                 format!("HEAD:refs/heads/{branch}"),
             ],
@@ -245,8 +243,9 @@ impl RepositoryWorkspace {
         let mut add_argv = vec!["git".to_owned(), "add".to_owned(), "--".to_owned()];
         add_argv.extend(paths.iter().cloned());
         self.run(&self.repository_root, &add_argv).await?;
-        let validation = run_validation_commands(
-            &self.repository_root,
+        let validation_root = self.prepare_validation_snapshot(&paths).await?;
+        let validation = run_validation_commands_sandboxed(
+            &validation_root,
             validation_commands,
             WORKSPACE_TIMEOUT,
         )
@@ -257,36 +256,22 @@ impl RepositoryWorkspace {
                 stderr: failed.stderr.clone(),
             });
         }
+        self.ensure_staged_paths(&paths).await?;
         lease.ensure().await?;
-        self.run(
-            &self.repository_root,
-            &[
-                "git".into(),
-                "config".into(),
-                "user.name".into(),
-                "PiTools[bot]".into(),
-            ],
-        )
-        .await?;
         lease.ensure().await?;
         self.ensure_remote_head(branch, expected_head_sha).await?;
-        lease.ensure().await?;
         self.run(
             &self.repository_root,
             &[
                 "git".into(),
-                "config".into(),
-                "user.email".into(),
-                "pitools[bot]@users.noreply.github.com".into(),
-            ],
-        )
-        .await?;
-        lease.ensure().await?;
-        self.run(
-            &self.repository_root,
-            &[
-                "git".into(),
+                "-c".into(),
+                "core.hooksPath=/dev/null".into(),
+                "-c".into(),
+                "user.name=PiTools[bot]".into(),
+                "-c".into(),
+                "user.email=pitools[bot]@users.noreply.github.com".into(),
                 "commit".into(),
+                "--no-verify".into(),
                 "-m".into(),
                 "fix: repair failed CI check".into(),
             ],
@@ -297,7 +282,12 @@ impl RepositoryWorkspace {
             &self.repository_root,
             &[
                 "git".into(),
+                "-c".into(),
+                "core.hooksPath=/dev/null".into(),
+                "-c".into(),
+                format!("remote.origin.url={}", self.remote_url),
                 "push".into(),
+                "--no-verify".into(),
                 "origin".into(),
                 format!("HEAD:refs/heads/{branch}"),
             ],
@@ -313,6 +303,97 @@ impl RepositoryWorkspace {
             commit: commit.stdout.trim().to_owned(),
             paths,
         })
+    }
+
+    async fn prepare_validation_snapshot(
+        &self,
+        changed_paths: &[String],
+    ) -> Result<PathBuf, WorkspaceError> {
+        let validation_root = self.root.join("validation");
+        fs::create_dir(&validation_root)?;
+        let archive = self.root.join("source.tar");
+        self.run(
+            &self.repository_root,
+            &[
+                "git".into(),
+                "-c".into(),
+                "core.hooksPath=/dev/null".into(),
+                "archive".into(),
+                "--format=tar".into(),
+                "--output".into(),
+                archive.to_string_lossy().into_owned(),
+                "HEAD".into(),
+            ],
+        )
+        .await?;
+        self.run(
+            &self.repository_root,
+            &[
+                "tar".into(),
+                "-xf".into(),
+                archive.to_string_lossy().into_owned(),
+                "-C".into(),
+                validation_root.to_string_lossy().into_owned(),
+            ],
+        )
+        .await?;
+        fs::remove_file(archive)?;
+
+        for path in changed_paths {
+            copy_changed_path(&self.repository_root, &validation_root, path)?;
+        }
+        Ok(validation_root)
+    }
+
+    async fn ensure_staged_paths(&self, expected: &[String]) -> Result<(), WorkspaceError> {
+        let staged = self
+            .run(
+                &self.repository_root,
+                &[
+                    "git".into(),
+                    "diff".into(),
+                    "--cached".into(),
+                    "--name-only".into(),
+                    "--".into(),
+                ],
+            )
+            .await?;
+        validate_staged_paths(expected, &staged.stdout)?;
+
+        let unstaged = self
+            .run(
+                &self.repository_root,
+                &[
+                    "git".into(),
+                    "diff".into(),
+                    "--name-only".into(),
+                    "--".into(),
+                ],
+            )
+            .await?;
+        if !unstaged.stdout.trim().is_empty() {
+            return Err(WorkspaceError::UnexpectedWorkspaceChanges(
+                unstaged.stdout.trim().to_owned(),
+            ));
+        }
+
+        let untracked = self
+            .run(
+                &self.repository_root,
+                &[
+                    "git".into(),
+                    "ls-files".into(),
+                    "--others".into(),
+                    "--exclude-standard".into(),
+                ],
+            )
+            .await?;
+        if !untracked.stdout.trim().is_empty() {
+            return Err(WorkspaceError::UnexpectedWorkspaceChanges(
+                untracked.stdout.trim().to_owned(),
+            ));
+        }
+        Ok(())
     }
 
     /// Rebase a checked-out branch onto a freshly fetched target and publish
@@ -453,8 +534,9 @@ impl RepositoryWorkspace {
             });
         }
 
-        let validation = run_validation_commands(
-            &self.repository_root,
+        let validation_root = self.prepare_validation_snapshot(&[]).await?;
+        let validation = run_validation_commands_sandboxed(
+            &validation_root,
             validation_commands,
             WORKSPACE_TIMEOUT,
         )
@@ -713,6 +795,79 @@ pub fn remote_head_argv(branch: &str) -> Result<Vec<String>, WorkspaceError> {
     ])
 }
 
+/// Verify that Git will commit exactly the files admitted by the repair plan.
+pub fn validate_staged_paths(expected: &[String], observed: &str) -> Result<(), WorkspaceError> {
+    let expected = expected
+        .iter()
+        .map(|path| {
+            validate_workspace_relative_path(path)?;
+            Ok(path.clone())
+        })
+        .collect::<Result<BTreeSet<_>, WorkspaceError>>()?;
+    let observed = observed
+        .lines()
+        .filter(|path| !path.is_empty())
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>();
+    if expected == observed {
+        Ok(())
+    } else {
+        Err(WorkspaceError::UnexpectedStagedPaths {
+            expected: expected.into_iter().collect(),
+            observed: observed.into_iter().collect(),
+        })
+    }
+}
+
+fn copy_changed_path(
+    source_root: &Path,
+    destination_root: &Path,
+    path: &str,
+) -> Result<(), WorkspaceError> {
+    validate_workspace_relative_path(path)?;
+    let source = source_root.join(path);
+    let destination = destination_root.join(path);
+    match fs::symlink_metadata(&source) {
+        Ok(metadata) if metadata.file_type().is_symlink() => Err(WorkspaceError::InvalidInput(
+            format!("symlink repair path is not supported: {path}"),
+        )),
+        Ok(metadata) if metadata.is_file() => {
+            if let Some(parent) = destination.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::copy(source, destination)?;
+            Ok(())
+        }
+        Ok(_) => Err(WorkspaceError::InvalidInput(format!(
+            "repair path is not a regular file: {path}"
+        ))),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            match fs::remove_file(destination) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(error.into()),
+            }
+        }
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn validate_workspace_relative_path(value: &str) -> Result<(), WorkspaceError> {
+    let path = Path::new(value);
+    if value.is_empty()
+        || value.contains(['\\', '\0', '\r', '\n'])
+        || path.is_absolute()
+        || !path
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(WorkspaceError::InvalidInput(format!(
+            "invalid repository-relative path: {value}"
+        )));
+    }
+    Ok(())
+}
+
 fn validate_segment(value: &str, field: &'static str) -> Result<(), WorkspaceError> {
     if value.is_empty()
         || value == "."
@@ -769,6 +924,15 @@ pub enum WorkspaceError {
     ValidationFailed { argv: Vec<String>, stderr: String },
     #[error("workspace started dirty")]
     DirtyWorkspace,
+    #[error(
+        "staged paths do not match the approved mutation set: expected {expected:?}, observed {observed:?}"
+    )]
+    UnexpectedStagedPaths {
+        expected: Vec<String>,
+        observed: Vec<String>,
+    },
+    #[error("validation changed the mutation workspace unexpectedly: {0}")]
+    UnexpectedWorkspaceChanges(String),
     #[error("deterministic feedback repair did not apply a change")]
     RepairNotApplied,
     #[error("feedback repair failed: {0}")]

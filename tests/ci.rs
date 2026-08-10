@@ -4,7 +4,7 @@ use pitools::{
     ci::{
         CiFailure, CiFailureInput, CiFailureKind, CiMutationAdmission, CiPatch, CiRepairPlan,
         WorktreePlan, admit_ci_mutation, is_repairable_check_conclusion, prepare_ci_evidence,
-        redact_ci_text, validate_patch_set,
+        redact_ci_text, validate_patch_set, validation_sandbox_argv,
     },
     policy::ValidationCommand,
 };
@@ -24,6 +24,22 @@ fn repairable_check_conclusions_cover_non_success_actions_states() {
     for conclusion in ["neutral", "success", "skipped"] {
         assert!(!is_repairable_check_conclusion(conclusion), "{conclusion}");
     }
+}
+
+#[test]
+fn validation_sandbox_hides_control_plane_files_and_network() {
+    let argv = validation_sandbox_argv(
+        Path::new("/var/lib/pitools/validation"),
+        &["make".into(), "check".into()],
+    )
+    .expect("sandbox command");
+    let rendered = argv.join(" ");
+    assert!(rendered.contains("--unshare-net"));
+    assert!(rendered.contains("--tmpfs /"));
+    assert!(rendered.contains("--bind /var/lib/pitools/validation /workspace"));
+    assert!(!rendered.contains("/run/secrets"));
+    assert!(!rendered.contains("GITHUB_PRIVATE_KEY_PATH"));
+    assert_eq!(argv.last().map(String::as_str), Some("check"));
 }
 
 #[test]
