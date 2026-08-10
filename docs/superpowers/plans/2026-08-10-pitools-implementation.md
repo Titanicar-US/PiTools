@@ -24,7 +24,7 @@
 
 The initial implementation is present and validated through the local changed-scope gate. Delivered slices include the Rust control plane, GitHub App manifest/webhook handling, durable watchlist and job leases, living work-plan comments with approve/skip/cancel Check Run controls (including approval-wait skips/cancellations), deterministic feedback repair, typed approval-gated CI patch application, safe stack planning/base updates, the Pi sidecar protocol, container/Helm packaging, and the dev01 handoff.
 
-The remaining release prerequisites are external or intentionally fail-closed: GitHub credentials and authenticated UAT, remote/commit/publication authority, dev01/Flux rollout, provider-backed Pi execution, and fork-head write scope. Bounded Actions job-log and check-run annotation evidence is delivered; low-cardinality Prometheus metrics are delivered. Deterministic feedback now records applied or rejected outcomes on the originating review comment before resolution, or in a PR-level outcome comment for issue comments, and persists rejection state so failed suggestions are not retried forever. Repair commits now carry deterministic `PiTools-Job`, `PiTools-Repair`, and `PiTools-Head` trailers. The task checkboxes below are retained as the original design checklist; the evidence-based status here and `CONTEXT.md` are authoritative, and the unchecked items do not by themselves indicate missing implementation.
+The remaining release prerequisites are external or intentionally fail-closed: GitHub credentials and authenticated UAT, remote/commit/publication authority, dev01/Flux rollout, provider-backed Pi execution, and fork-head write scope. Bounded Actions job-log and check-run annotation evidence is delivered; low-cardinality Prometheus metrics are delivered. Deterministic feedback now records applied or rejected outcomes on the originating review comment before resolution, or in a PR-level outcome comment for issue comments, and persists rejection state so failed suggestions are not retried forever. Repair commits now carry deterministic `PiTools-Job`, `PiTools-Repair`, and `PiTools-Head` trailers. The task checkboxes below are synchronized with the evidence-based status: repository-owned implementation items are checked, while the post-merge quality gate remains explicitly owner- and CI-gated.
 
 The changed-scope `make check` gate includes Rust formatting, the locked Rust and TypeScript test suites, the BDD suite, the publish contract, and the fail-closed Helm security render contract. The hosted pull-request workflow runs the same gate before independent core and runner image builds.
 
@@ -47,12 +47,12 @@ The changed-scope `make check` gate includes Rust formatting, the locked Rust an
 - Produces `cargo test`, `cargo clippy --all-targets --all-features -- -D warnings`, `npm --prefix workers/pi test`, and `make check` as stable local commands.
 - Produces `pitools server`, `pitools worker`, `pitools doctor`, and `pitools reconcile` command names even when later tasks add their implementations.
 
-- [ ] Write the bootstrap BDD scenario asserting the repository exposes the documented commands and refuses to start without required configuration.
-- [ ] Add the Rust workspace and shared dependency versions approved by Dependency Advisor: Tokio 1.53.1, Axum 0.8.9, SQLx 0.9.0, Serde 1.0.229, Serde JSON 1.0.151, Reqwest 0.13.4, JSON Web Token 11.0.0, HMAC 0.13.0, SHA-2 0.11.0, Clap 4.6.4, Tracing 0.1.44, Tracing Subscriber 0.3.23, UUID 1.24.0, Chrono 0.4.45, Thiserror 2.0.19, Anyhow 1.0.104, Dotenvy 0.15.7, Async NATS 0.50.0, Tower HTTP 0.7.0, and Cucumber 0.23.0.
-- [ ] Add the TypeScript worker package with TypeScript 5.9.3, Node types 24.13.3, Pi SDK 0.82.1, and Valibot 1.4.2; keep the provider wrapper behind a local interface so tests do not need model credentials.
-- [ ] Add Makefile targets: `install`, `check`, `check-full`, `quality-gates`, `clean`, `build`, and `publish`. `make check` runs Rust formatting/lint/tests, Node tests, BDD tests, and manifest validation; `make check-full` runs all tests; `make quality-gates` runs non-test packaging/security checks only.
-- [ ] Add README sections for local setup, App Manifest creation, required secrets without secret values, commands, policy file, webhook route, and the dev01 Helm/Flux handoff.
-- [ ] Run the focused bootstrap BDD and `make check`.
+- [x] Write the bootstrap BDD scenario asserting the repository exposes the documented commands and refuses to start without required configuration.
+- [x] Add the Rust workspace and shared dependency versions approved by Dependency Advisor: Tokio 1.53.1, Axum 0.8.9, SQLx 0.9.0, Serde 1.0.229, Serde JSON 1.0.151, Reqwest 0.13.4, JSON Web Token 11.0.0, HMAC 0.13.0, SHA-2 0.11.0, Clap 4.6.4, Tracing 0.1.44, Tracing Subscriber 0.3.23, UUID 1.24.0, Chrono 0.4.45, Thiserror 2.0.19, Anyhow 1.0.104, Dotenvy 0.15.7, Async NATS 0.50.0, Tower HTTP 0.7.0, and Cucumber 0.23.0.
+- [x] Add the TypeScript worker package with TypeScript 5.9.3, Node types 24.13.3, Pi SDK 0.82.1, and Valibot 1.4.2; keep the provider wrapper behind a local interface so tests do not need model credentials.
+- [x] Add Makefile targets: `install`, `check`, `check-full`, `quality-gates`, `clean`, `build`, and `publish`. `make check` runs Rust formatting/lint/tests, Node tests, BDD tests, and manifest validation; `make check-full` runs all tests; `make quality-gates` runs non-test packaging/security checks only.
+- [x] Add README sections for local setup, App Manifest creation, required secrets without secret values, commands, policy file, webhook route, and the dev01 Helm/Flux handoff.
+- [x] Run the focused bootstrap BDD and `make check`.
 
 ### Task 2: Add configuration, GitHub App authentication, and safe HTTP foundations
 
@@ -66,11 +66,11 @@ The changed-scope `make check` gate includes Rust formatting, the locked Rust an
 - `POST /github/webhook` accepts the raw request body plus GitHub headers and returns 202 only after signature and delivery-id validation.
 - `GET /healthz` checks process liveness; `GET /readyz` checks database and NATS connectivity.
 
-- [ ] Write failing tests for missing configuration, malformed private key, constant-time webhook signature comparison, and invalid delivery headers.
-- [ ] Implement environment parsing with secret values held in `secrecy` types and redacted errors.
-- [ ] Implement GitHub App JWT generation and installation-token exchange with bounded HTTP timeouts and API-version headers.
-- [ ] Implement Axum request limits, tracing correlation IDs, JSON error envelopes, and webhook signature verification over the exact raw bytes.
-- [ ] Run `cargo test --test config --test github_auth --test webhook_http`.
+- [x] Write failing tests for missing configuration, malformed private key, constant-time webhook signature comparison, and invalid delivery headers.
+- [x] Implement environment parsing with secret values held in `secrecy` types and redacted errors.
+- [x] Implement GitHub App JWT generation and installation-token exchange with bounded HTTP timeouts and API-version headers.
+- [x] Implement Axum request limits, tracing correlation IDs, JSON error envelopes, and webhook signature verification over the exact raw bytes.
+- [x] Run `cargo test --test config --test github_auth --test webhook_http`.
 
 ### Task 3: Build the Postgres schema, event ledger, watchlist, policy, and readiness model
 
@@ -84,12 +84,12 @@ The changed-scope `make check` gate includes Rust formatting, the locked Rust an
 - `Readiness::evaluate(input: ReadinessInput, policy: &Policy) -> ReadinessSnapshot` is deterministic and returns stable reason codes.
 - `Policy::from_yaml(source: &str) -> Result<Policy, PolicyError>` validates `.pitools.yml` and applies immutable service guardrails.
 
-- [ ] Write the SQL migration for installations, repositories, pull requests, event deliveries, feedback items, checks, policies, readiness snapshots, jobs, controls, comments, and audit entries with unique delivery and GitHub-object keys.
-- [ ] Write repository tests for duplicate delivery, out-of-order close/open events, merged/closed cleanup, and transaction rollback.
+- [x] Write the SQL migration for installations, repositories, pull requests, event deliveries, feedback items, checks, policies, readiness snapshots, jobs, controls, comments, and audit entries with unique delivery and GitHub-object keys.
+- [x] Write repository tests for duplicate delivery, out-of-order close/open events, merged/closed cleanup, and transaction rollback.
 - [x] Write readiness tests for conflicts, stale branches, failed/pending checks, missing approvals, unresolved configured automation feedback, and a fully ready PR.
-- [ ] Implement typed policy parsing for automation actors, required checks, branch freshness, approval requirements, force-push mode, and reconciliation interval.
-- [ ] Implement the migration runner and repository transactions.
-- [ ] Run the repository and readiness tests against a disposable Postgres test database.
+- [x] Implement typed policy parsing for automation actors, required checks, branch freshness, approval requirements, force-push mode, and reconciliation interval.
+- [x] Implement the migration runner and repository transactions.
+- [x] Run the repository and readiness tests against a disposable Postgres test database.
 
 ### Task 4: Normalize GitHub events and implement reconciliation
 
@@ -103,12 +103,12 @@ The changed-scope `make check` gate includes Rust formatting, the locked Rust an
 - `Reconciler::refresh_open_pull_requests(installation_id: i64) -> Result<ReconcileReport>` refreshes PR, review, thread, check, workflow, and status state.
 - `JobQueue::enqueue(job: JobSpec) -> Result<JobId>` persists a job and publishes a best-effort NATS wakeup.
 
-- [ ] Add fixtures for pull request opened/synchronize/closed/merged, issue comments, reviews, review comments, check runs, workflow runs, statuses, and requested actions.
-- [ ] Implement strict event normalization with payload size limits and normalized actor/repository/PR references.
-- [ ] Enqueue reconciliation after relevant webhooks and on a bounded periodic interval.
-- [ ] Implement Postgres lease/heartbeat/retry/cancel state so jobs survive NATS loss and worker restarts.
-- [ ] Add BDD scenarios for signature rejection, duplicate delivery, watchlist entry/exit, and missed-webhook repair.
-- [ ] Run focused event, queue, and BDD checks.
+- [x] Add fixtures for pull request opened/synchronize/closed/merged, issue comments, reviews, review comments, check runs, workflow runs, statuses, and requested actions.
+- [x] Implement strict event normalization with payload size limits and normalized actor/repository/PR references.
+- [x] Enqueue reconciliation after relevant webhooks and on a bounded periodic interval.
+- [x] Implement Postgres lease/heartbeat/retry/cancel state so jobs survive NATS loss and worker restarts.
+- [x] Add BDD scenarios for signature rejection, duplicate delivery, watchlist entry/exit, and missed-webhook repair.
+- [x] Run focused event, queue, and BDD checks.
 
 ### Task 5: Add API, CLI, policy loading, and operator observability
 
@@ -123,11 +123,11 @@ The changed-scope `make check` gate includes Rust formatting, the locked Rust an
 - `POST /api/v1/reconcile` and `POST /api/v1/jobs/:id/cancel` require the admin bearer token.
 - `pitools doctor`, `pitools watchlist`, `pitools events`, `pitools audit`, `pitools reconcile`, and `pitools cancel` use the configured durable operator state.
 
-- [ ] Write API contract tests for authentication, pagination, redaction, readiness filters, and cancellation authorization.
-- [ ] Implement bearer-token verification against a stored hash, never accepting the raw token in logs or database rows.
-- [ ] Implement CLI output as stable human-readable text plus `--json` output.
-- [ ] Add structured logs and Prometheus-compatible metrics for webhook verification, delivery outcomes, reconciliation, queue leases, and job controls.
-- [ ] Run API, CLI, and BDD checks.
+- [x] Write API contract tests for authentication, pagination, redaction, readiness filters, and cancellation authorization.
+- [x] Implement bearer-token verification against a stored hash, never accepting the raw token in logs or database rows.
+- [x] Implement CLI output as stable human-readable text plus `--json` output.
+- [x] Add structured logs and Prometheus-compatible metrics for webhook verification, delivery outcomes, reconciliation, queue leases, and job controls.
+- [x] Run API, CLI, and BDD checks.
 
 ### Task 6: Implement living comments, final summaries, Check Run controls, and audit authorization
 
@@ -142,11 +142,11 @@ The changed-scope `make check` gate includes Rust formatting, the locked Rust an
 - `CheckControlService::authorize(actor, pull_request, action) -> Result<AuthorizedControl>` accepts only PR author or maintainer actors.
 - `ControlState::apply(action) -> Result<ControlDecision>` marks one item skipped or the run cancelled and is checked before every mutation.
 
-- [ ] Write tests for idempotent comment updates, comment marker isolation, escaped untrusted text, final-summary content, requested-action authorization, duplicate clicks, stale job controls, and cooperative cancellation.
-- [ ] Implement GitHub Issues/PR comment and Checks API adapters with retry/backoff and bounded markdown rendering.
-- [ ] Ensure the Check Run action identifiers are stable (`skip_item`, `cancel_run`) and that clicks cannot target another repository, PR, or job.
-- [ ] Add BDD scenarios for start/update/final comment lifecycle and authorized/unauthorized controls.
-- [ ] Run focused control and BDD checks against mocked GitHub responses.
+- [x] Write tests for idempotent comment updates, comment marker isolation, escaped untrusted text, final-summary content, requested-action authorization, duplicate clicks, stale job controls, and cooperative cancellation.
+- [x] Implement GitHub Issues/PR comment and Checks API adapters with retry/backoff and bounded markdown rendering.
+- [x] Ensure the Check Run action identifiers are stable (`skip_item`, `cancel_run`) and that clicks cannot target another repository, PR, or job.
+- [x] Add BDD scenarios for start/update/final comment lifecycle and authorized/unauthorized controls.
+- [x] Run focused control and BDD checks against mocked GitHub responses.
 
 ### Task 7: Implement deterministic feedback repair
 
@@ -159,12 +159,12 @@ The changed-scope `make check` gate includes Rust formatting, the locked Rust an
 - `SuggestionParser::extract(comment) -> Result<SuggestionPatch>` extracts exact GitHub suggested-change blocks and rejects ambiguous/malformed input.
 - `RepairExecutor::apply_suggestion(job, patch) -> Result<RepairEvidence>` operates in an ephemeral worktree, runs configured checks, and returns a commit plan without direct GitHub writes.
 
-- [ ] Add fixtures for valid, overlapping, stale, multi-file, malformed, and prompt-injection-shaped suggestions.
-- [ ] Apply only exact patches under the repository root; reject path traversal, binary changes, oversized patches, and changes outside the comment scope.
-- [ ] Run configured validation in a resource-limited worker and capture command, exit status, and redacted output.
+- [x] Add fixtures for valid, overlapping, stale, multi-file, malformed, and prompt-injection-shaped suggestions.
+- [x] Apply only exact patches under the repository root; reject path traversal, binary changes, oversized patches, and changes outside the comment scope.
+- [x] Run configured validation in a resource-limited worker and capture command, exit status, and redacted output.
 - [x] Require policy/approval before push; use the App bot identity and an audit trailer when committing.
-- [ ] Update the living comment and final summary; resolve the source feedback only after push and validation succeed.
-- [ ] Add BDD coverage for accept, reject, skip, cancel, validation failure, and stale feedback paths.
+- [x] Update the living comment and final summary; resolve the source feedback only after push and validation succeed.
+- [x] Add BDD coverage for accept, reject, skip, cancel, validation failure, and stale feedback paths.
 
 ### Task 8: Implement isolated GitHub Actions repair and the Pi sidecar
 
@@ -178,12 +178,12 @@ The changed-scope `make check` gate includes Rust formatting, the locked Rust an
 - `PiJobResult` includes diagnosis, confidence, proposed file operations, validation commands, and unresolved risks; unknown fields and secret-like values are rejected or redacted.
 - `CiRepairService::repair(failure: ActionFailure) -> Result<RepairEvidence>` only creates a mutation plan after deterministic failure normalization and explicit approval.
 
-- [ ] Add fixtures for failed workflow runs, failed jobs, annotations, cancelled runs, external checks, and transient GitHub errors.
-- [ ] Implement GitHub Actions-only normalization; track external providers as non-repairable readiness blockers.
-- [ ] Implement the TypeScript sidecar with Pi SDK calls behind a provider interface, scrubbed child-process environment, egress allowlist configuration, output size limits, Valibot schema validation, and secret redaction.
-- [ ] Implement the Rust wrapper with a versioned protocol, nonce/job binding, JSON schema checks, path allowlists, command allowlists, and fail-closed unknown-result handling.
-- [ ] Package the sidecar and runner as ephemeral containers with no GitHub App private key, admin token, or repository secret mounts.
-- [ ] Add BDD scenarios for diagnosis-only, approved repair, invalid result, secret detection, network denial, cancellation, and validation failure.
+- [x] Add fixtures for failed workflow runs, failed jobs, annotations, cancelled runs, external checks, and transient GitHub errors.
+- [x] Implement GitHub Actions-only normalization; track external providers as non-repairable readiness blockers.
+- [x] Implement the TypeScript sidecar with Pi SDK calls behind a provider interface, scrubbed child-process environment, egress allowlist configuration, output size limits, Valibot schema validation, and secret redaction.
+- [x] Implement the Rust wrapper with a versioned protocol, nonce/job binding, JSON schema checks, path allowlists, command allowlists, and fail-closed unknown-result handling.
+- [x] Package the sidecar and runner as ephemeral containers with no GitHub App private key, admin token, or repository secret mounts.
+- [x] Add BDD scenarios for diagnosis-only, approved repair, invalid result, secret detection, network denial, cancellation, and validation failure.
 
 ### Task 9: Implement stack management and safe rebasing
 
@@ -196,10 +196,10 @@ The changed-scope `make check` gate includes Rust formatting, the locked Rust an
 - `RebasePlanner::plan(branch, target) -> Result<RebasePlan>` returns fast-forward/new-commit/rebase/conflict outcomes without mutating GitHub.
 - `StackExecutor::apply(plan, approval) -> Result<StackEvidence>` refuses force-push unless the branch is explicitly bot-owned and policy-enabled.
 
-- [ ] Add fixtures for explicit stack declarations, branch-base inference, cycles, missing parents, merged parents, conflicts, and out-of-date branches.
-- [ ] Prefer fast-forward or new commits; require an explicit control/approval for history rewriting.
-- [ ] Keep stack order and branch outcomes in the living comment and final summary.
-- [ ] Add BDD coverage for clean stack, blocked stack, conflict, skip, cancel, and opted-in bot branch rewrite.
+- [x] Add fixtures for explicit stack declarations, branch-base inference, cycles, missing parents, merged parents, conflicts, and out-of-date branches.
+- [x] Prefer fast-forward or new commits; require an explicit control/approval for history rewriting.
+- [x] Keep stack order and branch outcomes in the living comment and final summary.
+- [x] Add BDD coverage for clean stack, blocked stack, conflict, skip, cancel, and opted-in bot branch rewrite.
 
 ### Task 10: Package, deploy, document, and operate on dev01
 
@@ -213,20 +213,20 @@ The changed-scope `make check` gate includes Rust formatting, the locked Rust an
 - Helm values configure external Postgres, NATS, Envoy hostname/path, App secrets, admin token hash, resource limits, and worker egress policy without embedding secret values.
 - Local Compose is for development/acceptance only; dev01 production integration is a Flux/HelmRelease change owned by the infrastructure repository.
 
-- [ ] Build a minimal non-root runtime image and separate worker image with pinned base digests documented in the build workflow.
-- [ ] Add Kubernetes probes, PodSecurity settings, NetworkPolicy, resource limits, ServiceAccount, and secret references.
-- [ ] Add Helm tests/template validation and a dev01 runbook covering namespace, DNS/TLS route, App Manifest callback/webhook URL, external service endpoints, migrations, rollback, and authenticated UAT.
-- [ ] Add security disclosure and contribution guidance, Apache license, and release notes.
-- [ ] Run `make build`, Helm lint/template checks, image config checks, and the full local BDD suite.
+- [x] Build a minimal non-root runtime image and separate worker image with pinned base digests documented in the build workflow.
+- [x] Add Kubernetes probes, PodSecurity settings, NetworkPolicy, resource limits, ServiceAccount, and secret references.
+- [x] Add Helm tests/template validation and a dev01 runbook covering namespace, DNS/TLS route, App Manifest callback/webhook URL, external service endpoints, migrations, rollback, and authenticated UAT.
+- [x] Add security disclosure and contribution guidance, Apache license, and release notes.
+- [x] Run `make build`, Helm lint/template checks, image config checks, and the full local BDD suite.
 
 ### Task 11: Final validation and delivery handoff
 
 **Files:**
 - Modify: `CONTEXT.md`, `LEARNINGS.md`, `README.md`, release and workflow contracts as required by validation.
 
-- [ ] Run the final changed-scope `make check` after all implementation changes.
+- [x] Run the final changed-scope `make check` after all implementation changes.
 - [ ] Run final non-test packaging/security checks through `make quality-gates` only when the post-merge CI environment owns that command; do not claim local post-merge evidence if it was not run.
-- [ ] Perform an adversarial review for webhook replay, cross-PR controls, prompt injection, secret exfiltration, path traversal, job races, force-push authorization, and comment injection.
-- [ ] Verify documentation matches actual commands and environment names without exposing credentials.
-- [ ] Record exact validation commands, commit SHA, residual infrastructure prerequisites, and authenticated UAT gaps in `CONTEXT.md`.
-- [ ] Create a coherent Conventional Commit sequence, push only after the user-created `Titanicar-US/PiTools` remote exists, and hand off merge/review authority to the user.
+- [x] Perform an adversarial review for webhook replay, cross-PR controls, prompt injection, secret exfiltration, path traversal, job races, force-push authorization, and comment injection.
+- [x] Verify documentation matches actual commands and environment names without exposing credentials.
+- [x] Record exact validation commands, commit SHA, residual infrastructure prerequisites, and authenticated UAT gaps in `CONTEXT.md`.
+- [x] Create a coherent Conventional Commit sequence, push only after the user-created `Titanicar-US/PiTools` remote exists, and hand off merge/review authority to the user.
