@@ -1,0 +1,25 @@
+{
+  "name": "@pitools/pi-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "check": "npm run build && npm test",
+    "start": "node --import tsx src/main.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.82.1",
+    "valibot": "1.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "tsx": "4.23.1",
+    "typescript": "5.9.3"
+  }
+}

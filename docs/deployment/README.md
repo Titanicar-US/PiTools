@@ -1,0 +1,59 @@
+# Deployment packaging
+
+PiTools ships two images and one Helm chart:
+
+- `Dockerfile` builds only the non-root Rust control plane. It contains no Node runtime, Pi source, or worker dependencies.
+- `runner/Dockerfile` builds the non-root, short-lived Pi repair worker. It has Git and SSH client tooling but no Docker daemon, Kubernetes client, GitHub App private key, webhook secret, or admin token.
+- `helm/pitools` deploys separate HTTP core, Rust durable-worker, and Pi worker workloads. The Rust worker owns GitHub credentials and durable mutations; the Pi worker uses a minimal NATS request/reply transport and receives no application credentials.
+- PostgreSQL, NATS, application secrets, DNS, TLS, and Flux reconciliation remain externally owned.
+
+The base images are pinned by both readable version tag and multi-platform manifest digest. Refresh a digest only after reviewing the upstream image and rebuilding both architectures used by the target cluster.
+
+Run the runner with a read-only root filesystem, a writable `noexec,nosuid,nodev` tmpfs at `/tmp`, a bounded writable worktree at `/workspace`, all Linux capabilities dropped, and only the approved network path. The caller supplies one protocol request on standard input and consumes the validated result on standard output.
+
+## Local Compose
+
+`docker-compose.local.yml` starts the HTTP core, Rust worker, and optional Pi worker with local PostgreSQL and NATS. It is not a production topology. All published ports bind to loopback.
+
+Generate an App Manifest for the approved HTTPS hostname with `pitools manifest --base-url https://<approved-hostname>` and complete the GitHub App creation/install flow before sending signed events. The generated `/github/manifest/callback` exchanges GitHub's one-time code and returns the App ID, PEM, and webhook secret with `Cache-Control: no-store`; copy them directly into the external secret manager and discard the response. PiTools does not persist App credentials.
+
+Set non-production values in your shell; do not commit them:
+
+```bash
+export PITOOLS_POSTGRES_PASSWORD='<local-only-password>'
+export PITOOLS_GITHUB_APP_ID='<non-production-app-id>'
+export PITOOLS_GITHUB_PRIVATE_KEY_FILE='<absolute-path-to-local-private-key.pem>'
+export PITOOLS_GITHUB_WEBHOOK_SECRET='<local-only-webhook-secret>'
+export PITOOLS_ADMIN_BEARER_TOKEN_HASH='<argon2id-hash-for-local-use>'
+docker compose -f docker-compose.local.yml up --build
+```
+
+Stop the stack with `docker compose -f docker-compose.local.yml down`. Add `--volumes` only when intentionally discarding the local PostgreSQL data.
+
+The Pi runner receives no PiTools application secrets. For a one-shot protocol check, send one JSON request on standard input:
+
+```bash
+printf '%s\n' '<validated-pi-job-json>' \
+  | docker compose -f docker-compose.local.yml --profile worker run --rm -T \
+      -e PITOOLS_PI_TRANSPORT=stdin pi-worker
+```
+
+The default diagnosis-only runtime requires no model credential. Enabling the Pi SDK or supplying provider credentials is a separate, caller-owned authorization boundary; do not add those values to this Compose file. A provider-backed worker may return typed unified patches, but Rust applies them only after exact path validation, a fresh PR-head check, the configured validation commands, and an authorized Check Run approval.
+
+## Image publication
+
+The release workflow validates source, the Helm render, and independent core and runner image builds before registry login and publication. It publishes `pitools` and `pitools-runner` for Linux amd64 and arm64 with BuildKit provenance and SBOM attestations. Consume the registry-reported image digest, not the mutable tag.
+
+## Helm rendering
+
+The chart deliberately has no deployable image or secret defaults. Supply a values file maintained by the infrastructure repository:
+
+```bash
+helm lint helm/pitools -f '<path-to-environment-values.yaml>'
+helm template pitools helm/pitools --namespace '<namespace>' -f '<path-to-environment-values.yaml>'
+helm/pitools/ci/verify-render.sh
+```
+
+NetworkPolicy is fail-closed. Environment values must identify ingress peers and DNS, PostgreSQL, NATS, and any approved HTTPS egress peers. Kubernetes NetworkPolicy does not accept DNS names; use namespace/pod selectors for in-cluster services or stable, platform-approved CIDRs for external services.
+
+With `piWorker.enabled=true`, the chart runs the long-lived NATS worker. Keep NATS egress restricted to the approved NATS peer; the worker still has no GitHub API egress or application secret. The Rust worker owns durable job state, request binding, timeouts, and mutation approval. The HTTP server also performs scoped periodic open-PR inventory so a missed webhook does not permanently remove a PR from observation once its installation/repository record exists.

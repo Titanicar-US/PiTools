@@ -1,0 +1,11 @@
+PiTools was rendered with fail-closed secret and network references.
+
+Service: {{ include "pitools.fullname" . }}:{{ .Values.service.port }}
+Health:  /healthz
+Ready:   /readyz
+Webhook: /github/webhook
+
+The chart does not create PostgreSQL, NATS, application Secrets, DNS records,
+TLS certificates, or Flux resources. See docs/deployment/dev01.md for the
+infrastructure-owner handoff and authenticated UAT gates.
+

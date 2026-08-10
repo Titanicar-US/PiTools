@@ -1,0 +1,6 @@
+apiVersion: v2
+name: pitools
+description: PiTools GitHub App control plane using external PostgreSQL and NATS services
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

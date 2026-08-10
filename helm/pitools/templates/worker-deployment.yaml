@@ -1,0 +1,87 @@
+{{- if .Values.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pitools.fullname" . }}-worker
+  labels:
+    {{- include "pitools.labels" . | nindent 4 }}
+    app.kubernetes.io/component: core-worker
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      {{- include "pitools.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: core-worker
+  template:
+    metadata:
+      labels:
+        {{- include "pitools.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: core-worker
+    spec:
+      serviceAccountName: {{ include "pitools.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: pitools-worker
+          image: {{ include "pitools.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/pitools", "worker"]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "externalServices.postgres.existingSecret is required" .Values.externalServices.postgres.existingSecret }}
+                  key: {{ required "externalServices.postgres.urlKey is required" .Values.externalServices.postgres.urlKey }}
+            - name: NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "externalServices.nats.existingSecret is required" .Values.externalServices.nats.existingSecret }}
+                  key: {{ required "externalServices.nats.urlKey is required" .Values.externalServices.nats.urlKey }}
+            - name: GITHUB_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "applicationSecret.existingSecret is required" .Values.applicationSecret.existingSecret }}
+                  key: {{ .Values.applicationSecret.keys.githubAppId }}
+            - name: GITHUB_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.applicationSecret.existingSecret }}
+                  key: {{ .Values.applicationSecret.keys.githubWebhookSecret }}
+            - name: ADMIN_BEARER_TOKEN_HASH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.applicationSecret.existingSecret }}
+                  key: {{ .Values.applicationSecret.keys.adminBearerTokenHash }}
+            - name: GITHUB_PRIVATE_KEY_PATH
+              value: /run/secrets/pitools/github-app-private-key.pem
+            - name: PITOOLS_RECONCILE_INTERVAL_SECONDS
+              value: "{{ .Values.reconcileIntervalSeconds | default 300 }}"
+            - name: TMPDIR
+              value: /tmp
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          volumeMounts:
+            - name: github-app-private-key
+              mountPath: /run/secrets/pitools
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: github-app-private-key
+          secret:
+            secretName: {{ .Values.applicationSecret.existingSecret }}
+            defaultMode: 288
+            items:
+              - key: {{ .Values.applicationSecret.keys.githubPrivateKey }}
+                path: github-app-private-key.pem
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+{{- end }}

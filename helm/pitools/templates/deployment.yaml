@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pitools.fullname" . }}
+  labels:
+    {{- include "pitools.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pitools.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: core
+  template:
+    metadata:
+      labels:
+        {{- include "pitools.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: core
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "pitools.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: pitools
+          image: {{ include "pitools.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/pitools", "server"]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "externalServices.postgres.existingSecret is required" .Values.externalServices.postgres.existingSecret }}
+                  key: {{ required "externalServices.postgres.urlKey is required" .Values.externalServices.postgres.urlKey }}
+            - name: NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "externalServices.nats.existingSecret is required" .Values.externalServices.nats.existingSecret }}
+                  key: {{ required "externalServices.nats.urlKey is required" .Values.externalServices.nats.urlKey }}
+            - name: GITHUB_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "applicationSecret.existingSecret is required" .Values.applicationSecret.existingSecret }}
+                  key: {{ .Values.applicationSecret.keys.githubAppId }}
+            - name: GITHUB_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.applicationSecret.existingSecret }}
+                  key: {{ .Values.applicationSecret.keys.githubWebhookSecret }}
+            - name: ADMIN_BEARER_TOKEN_HASH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.applicationSecret.existingSecret }}
+                  key: {{ .Values.applicationSecret.keys.adminBearerTokenHash }}
+            - name: GITHUB_PRIVATE_KEY_PATH
+              value: /run/secrets/pitools/github-app-private-key.pem
+            - name: PITOOLS_BIND_ADDRESS
+              value: 0.0.0.0:8080
+            - name: TMPDIR
+              value: /tmp
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            {{- toYaml .Values.probes.liveness | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            {{- toYaml .Values.probes.readiness | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: github-app-private-key
+              mountPath: /run/secrets/pitools
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: github-app-private-key
+          secret:
+            secretName: {{ .Values.applicationSecret.existingSecret }}
+            # Kubernetes mode fields are decimal in JSON; 288 is octal 0440.
+            defaultMode: 288
+            items:
+              - key: {{ .Values.applicationSecret.keys.githubPrivateKey }}
+                path: github-app-private-key.pem
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
