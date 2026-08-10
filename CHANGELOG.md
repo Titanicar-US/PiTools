@@ -18,4 +18,5 @@
 - Added a fail-closed, separately secret-backed opt-in for provider SDK execution in the Pi worker.
 - Hardened `/readyz` with a bounded NATS flush probe alongside the PostgreSQL check.
 - Added an immediate remote-head lease check before approved feedback and CI repair pushes, rejecting branch movement after validation.
+- Gated immutable image publication to exact `vMAJOR.MINOR.PATCH` tag refs, including manual workflow dispatches.
 - Updated pinned GitHub Actions to current Node 24-compatible major releases after hosted CI reported the Node 20 deprecation warning.
