@@ -410,3 +410,61 @@ async fn reads_bounded_check_run_output_for_ci_diagnosis() {
     assert_eq!(output.summary.as_deref(), Some("compiler error"));
     assert_eq!(output.text.as_deref(), Some("src/lib.rs:1:1 error"));
 }
+
+#[tokio::test]
+async fn reads_actions_job_logs_and_check_run_annotations_for_ci_diagnosis() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/repos/acme/widgets/actions/jobs/399/logs"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string("Run cargo test\nerror: assertion failed\n"),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/repos/acme/widgets/check-runs/81/annotations"))
+        .and(query_param("per_page", "100"))
+        .and(query_param("page", "1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            {
+                "path": "src/lib.rs",
+                "start_line": 4,
+                "end_line": 4,
+                "annotation_level": "failure",
+                "message": "assertion failed",
+                "title": "cargo test"
+            }
+        ])))
+        .mount(&server)
+        .await;
+
+    let logs = client(&server)
+        .download_workflow_job_logs("acme", "widgets", 399)
+        .await
+        .expect("workflow logs download succeeds");
+    assert!(logs.contains("assertion failed"));
+
+    let annotations = client(&server)
+        .list_check_run_annotations("acme", "widgets", 81)
+        .await
+        .expect("check annotations read succeeds");
+    assert_eq!(annotations.len(), 1);
+    assert_eq!(annotations[0].path, "src/lib.rs");
+    assert_eq!(annotations[0].message, "assertion failed");
+}
+
+#[tokio::test]
+async fn rejects_oversized_actions_job_logs() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/repos/acme/widgets/actions/jobs/399/logs"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("x".repeat(128 * 1024 + 1)))
+        .mount(&server)
+        .await;
+
+    let error = client(&server)
+        .download_workflow_job_logs("acme", "widgets", 399)
+        .await
+        .expect_err("oversized workflow logs must fail closed");
+    assert!(matches!(error, GitHubClientError::WorkflowLogTooLarge));
+}

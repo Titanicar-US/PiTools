@@ -35,6 +35,11 @@ Feature: pull request work-plan controls
     When PiTools prepares CI evidence
     Then the CI evidence contains no credential-shaped text
 
+  Scenario: Actions logs and annotations are retained in bounded diagnosis evidence
+    Given a failed GitHub Actions check has logs and annotations
+    When PiTools prepares the Actions diagnosis envelope
+    Then the bounded evidence retains the Actions log and annotation
+
   Scenario: operator metrics expose low-cardinality webhook counters
     Given PiTools has received a webhook
     When the operator reads Prometheus metrics

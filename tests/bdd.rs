@@ -27,6 +27,7 @@ struct World {
     feedback_applied: bool,
     feedback_contents: Option<String>,
     manifest_code_rejected: bool,
+    operator_commands_exposed: bool,
     rebase_default_rejected: bool,
     rebase_explicit_allowed: bool,
     ci_evidence: Option<String>,
@@ -62,6 +63,24 @@ fn doctor_loads_configuration(world: &mut World) {
 fn configuration_fails_closed(world: &mut World) {
     assert!(world.configuration_failed);
     assert!(!world.secret_exposed);
+}
+
+#[when("the operator reads the CLI help")]
+fn operator_reads_cli_help(world: &mut World) {
+    let output = Command::new(env!("CARGO_BIN_EXE_pitools"))
+        .arg("--help")
+        .output()
+        .expect("run pitools help");
+    let help = String::from_utf8_lossy(&output.stdout);
+    world.operator_commands_exposed = output.status.success()
+        && ["watchlist", "events", "audit", "cancel"]
+            .iter()
+            .all(|command| help.contains(command));
+}
+
+#[then("the CLI exposes bounded inspection and cancellation commands")]
+fn operator_commands_are_exposed(world: &mut World) {
+    assert!(world.operator_commands_exposed);
 }
 
 #[given("a GitHub pull request delivery with a valid signature")]
@@ -253,6 +272,33 @@ fn ci_evidence_is_redacted(world: &mut World) {
     let evidence = world.ci_evidence.as_deref().expect("CI evidence");
     assert!(!evidence.contains("ghp_example"));
     assert!(evidence.contains("[REDACTED]"));
+}
+
+#[given("a failed GitHub Actions check has logs and annotations")]
+fn failed_actions_check(world: &mut World) {
+    world.ci_evidence = Some("actions-evidence-fixture".into());
+}
+
+#[when("PiTools prepares the Actions diagnosis envelope")]
+fn prepares_actions_diagnosis(world: &mut World) {
+    world.ci_evidence = Some(
+        pitools::ci::prepare_ci_evidence(
+            &json!({"checks": [{"external_id": "81"}]}),
+            &json!([{
+                "actions_log": "error: test failed",
+                "annotations": [{"path": "src/lib.rs", "message": "assertion failed"}]
+            }]),
+        )
+        .expect("Actions evidence serializes"),
+    );
+}
+
+#[then("the bounded evidence retains the Actions log and annotation")]
+fn actions_evidence_is_retained(world: &mut World) {
+    let evidence = world.ci_evidence.as_deref().expect("Actions evidence");
+    assert!(evidence.contains("test failed"));
+    assert!(evidence.contains("src/lib.rs"));
+    assert!(evidence.contains("assertion failed"));
 }
 
 #[given("PiTools has received a webhook")]

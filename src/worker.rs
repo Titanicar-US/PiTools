@@ -19,7 +19,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
-    ci::{MAX_CI_LOG_BYTES, redact_ci_text},
+    ci::prepare_ci_evidence,
     github::{
         auth::{GitHubAppAuth, InstallationTokenScope},
         client::GitHubClient,
@@ -1033,6 +1033,53 @@ impl WorkerRuntime {
                                 "text": output.text,
                             })
                         });
+                        let annotations = match github
+                            .list_check_run_annotations(
+                                &repository.owner,
+                                &repository.name,
+                                check_run.id,
+                            )
+                            .await
+                        {
+                            Ok(annotations) => serde_json::to_value(annotations)
+                                .unwrap_or_else(|_| serde_json::Value::Array(Vec::new())),
+                            Err(error) => {
+                                tracing::warn!(
+                                    job_id = %job.id,
+                                    check_run_id = check_run.id,
+                                    error = %error,
+                                    "failed to fetch check annotations; continuing with stored failure evidence"
+                                );
+                                serde_json::Value::Array(Vec::new())
+                            }
+                        };
+                        let actions_log = if check_run
+                            .conclusion
+                            .as_deref()
+                            .is_some_and(is_failed_check_conclusion)
+                        {
+                            match github
+                                .download_workflow_job_logs(
+                                    &repository.owner,
+                                    &repository.name,
+                                    check_run.id,
+                                )
+                                .await
+                            {
+                                Ok(log) => Some(json!(log)),
+                                Err(error) => {
+                                    tracing::warn!(
+                                        job_id = %job.id,
+                                        check_run_id = check_run.id,
+                                        error = %error,
+                                        "failed to fetch Actions job logs; continuing with check-run evidence"
+                                    );
+                                    None
+                                }
+                            }
+                        } else {
+                            None
+                        };
                         check_outputs.push(json!({
                             "id": check_run.id,
                             "name": check_run.name,
@@ -1040,6 +1087,8 @@ impl WorkerRuntime {
                             "conclusion": check_run.conclusion,
                             "details_url": check_run.details_url,
                             "output": output,
+                            "annotations": annotations,
+                            "actions_log": actions_log,
                         }));
                     }
                     Err(error) => {
@@ -1053,16 +1102,8 @@ impl WorkerRuntime {
                 }
             }
         }
-        let evidence = serde_json::json!({
-            "job_plan": job.plan,
-            "check_outputs": check_outputs,
-        });
-        let serialized = serde_json::to_string(&evidence)
-            .map_err(|error| WorkerError::PiSerialization(error.to_string()))?;
-        Ok(truncate_utf8(
-            &redact_ci_text(&serialized),
-            MAX_CI_LOG_BYTES.min(48 * 1024),
-        ))
+        prepare_ci_evidence(&job.plan, &serde_json::Value::Array(check_outputs))
+            .map_err(|error| WorkerError::PiSerialization(error.to_string()))
     }
 
     async fn ensure_lease(&self, worker_id: &str, job: &LeasedJob) -> Result<(), WorkerError> {
@@ -1098,17 +1139,6 @@ impl WorkerRuntime {
             .await?;
         Ok(policy)
     }
-}
-
-fn truncate_utf8(value: &str, maximum: usize) -> String {
-    if value.len() <= maximum {
-        return value.to_owned();
-    }
-    let mut end = maximum;
-    while end > 0 && !value.is_char_boundary(end) {
-        end -= 1;
-    }
-    value[..end].to_owned()
 }
 
 fn parse_policy(source: &str) -> Result<Policy, WorkerError> {
@@ -1202,6 +1232,13 @@ fn waiting_for_approval(summary: &str, blocker: &str) -> serde_json::Value {
         "remaining_blockers": [blocker],
         "requires_approval": true,
     })
+}
+
+fn is_failed_check_conclusion(conclusion: &str) -> bool {
+    matches!(
+        conclusion,
+        "action_required" | "cancelled" | "failure" | "startup_failure" | "stale" | "timed_out"
+    )
 }
 
 fn job_kind_summary(kind: &str) -> &'static str {

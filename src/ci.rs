@@ -48,6 +48,33 @@ pub fn redact_ci_text(value: &str) -> String {
     lines.join("\n")
 }
 
+/// Serialize the bounded CI evidence envelope that is safe to send to Pi.
+pub fn prepare_ci_evidence(
+    job_plan: &serde_json::Value,
+    check_outputs: &serde_json::Value,
+) -> Result<String, serde_json::Error> {
+    let evidence = serde_json::json!({
+        "job_plan": job_plan,
+        "check_outputs": check_outputs,
+    });
+    let serialized = serde_json::to_string_pretty(&evidence)?;
+    Ok(truncate_utf8(
+        &redact_ci_text(&serialized),
+        MAX_CI_LOG_BYTES.min(48 * 1024),
+    ))
+}
+
+fn truncate_utf8(value: &str, maximum: usize) -> String {
+    if value.len() <= maximum {
+        return value.to_owned();
+    }
+    let mut end = maximum;
+    while end > 0 && !value.is_char_boundary(end) {
+        end -= 1;
+    }
+    value[..end].to_owned()
+}
+
 fn redact_token_marker(value: &mut String, marker: &str) {
     let mut search_from = 0;
     while let Some(relative) = value[search_from..].find(marker) {

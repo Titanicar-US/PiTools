@@ -9,5 +9,7 @@
 - Added explicit Check Run plan approval, durable waiting-approval transitions, skip-item plan advancement, typed allowlisted CI patch application, and safe approved PR base-branch updates for declared stacks.
 - Kept Skip and Cancel available during approval waits without implicitly authorizing the remaining plan.
 - Added bounded GitHub check-run output evidence and redaction before Pi diagnosis, plus leased stack branch rebases with exact bot-owned branch authorization.
+- Added bounded GitHub Actions job-log downloads and check-run annotations to the redacted Pi diagnosis envelope, with fail-closed response-size limits.
 - Added low-cardinality Prometheus counters at the internal `/metrics` endpoint.
+- Added bounded operator API reads for PR detail, webhook delivery metadata, and audit entries, plus matching CLI watchlist/events/audit/cancel commands.
 - Updated pinned GitHub Actions to current Node 24-compatible major releases after hosted CI reported the Node 20 deprecation warning.

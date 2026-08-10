@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
@@ -16,6 +16,12 @@ use crate::{
 pub fn routes() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/v1/watchlist", axum::routing::get(list_watchlist))
+        .route(
+            "/api/v1/watchlist/{repository_id}/{pull_request_number}",
+            axum::routing::get(get_watchlist_item),
+        )
+        .route("/api/v1/events", axum::routing::get(list_events))
+        .route("/api/v1/audit", axum::routing::get(list_audit))
         .route("/api/v1/reconcile", axum::routing::post(enqueue_reconcile))
         .route(
             "/api/v1/jobs/{job_id}/cancel",
@@ -41,6 +47,76 @@ async fn list_watchlist(
         .await
         .map_err(|error| ApiError::Internal(error.to_string()))?;
     Ok(Json(WatchlistResponse { pull_requests }))
+}
+
+#[derive(Debug, Deserialize)]
+struct ListQuery {
+    limit: Option<u16>,
+}
+
+impl ListQuery {
+    fn limit(&self) -> i64 {
+        i64::from(self.limit.unwrap_or(50).clamp(1, 100))
+    }
+}
+
+async fn get_watchlist_item(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((repository_id, pull_request_number)): Path<(i64, i32)>,
+) -> Result<Json<crate::repository::PullRequestDetail>, ApiError> {
+    require_admin(&headers, &state)?;
+    let repositories = state
+        .repositories
+        .ok_or(ApiError::Unavailable("database"))?;
+    let detail = repositories
+        .pull_request_detail(repository_id, pull_request_number)
+        .await
+        .map_err(|error| ApiError::Internal(error.to_string()))?
+        .ok_or(ApiError::NotFound)?;
+    Ok(Json(detail))
+}
+
+#[derive(Debug, Serialize)]
+pub struct EventsResponse {
+    pub events: Vec<crate::repository::EventDeliveryRow>,
+}
+
+async fn list_events(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ListQuery>,
+) -> Result<Json<EventsResponse>, ApiError> {
+    require_admin(&headers, &state)?;
+    let repositories = state
+        .repositories
+        .ok_or(ApiError::Unavailable("database"))?;
+    let events = repositories
+        .recent_events(query.limit())
+        .await
+        .map_err(|error| ApiError::Internal(error.to_string()))?;
+    Ok(Json(EventsResponse { events }))
+}
+
+#[derive(Debug, Serialize)]
+pub struct AuditResponse {
+    pub entries: Vec<crate::repository::AuditRow>,
+}
+
+async fn list_audit(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ListQuery>,
+) -> Result<Json<AuditResponse>, ApiError> {
+    require_admin(&headers, &state)?;
+    let repositories = state
+        .repositories
+        .ok_or(ApiError::Unavailable("database"))?;
+    let entries = repositories
+        .recent_audit_entries(query.limit())
+        .await
+        .map_err(|error| ApiError::Internal(error.to_string()))?;
+    Ok(Json(AuditResponse { entries }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,6 +177,7 @@ fn require_admin(headers: &HeaderMap, state: &AppState) -> Result<(), ApiError> 
 pub enum ApiError {
     Unauthorized,
     Unavailable(&'static str),
+    NotFound,
     Internal(String),
 }
 
@@ -109,6 +186,7 @@ impl IntoResponse for ApiError {
         let (status, message) = match self {
             Self::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized".into()),
             Self::Unavailable(component) => (StatusCode::SERVICE_UNAVAILABLE, component.into()),
+            Self::NotFound => (StatusCode::NOT_FOUND, "not found".into()),
             Self::Internal(message) => (StatusCode::INTERNAL_SERVER_ERROR, message),
         };
         (status, Json(serde_json::json!({"error": message}))).into_response()

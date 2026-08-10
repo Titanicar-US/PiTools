@@ -791,6 +791,98 @@ impl Repositories {
             .collect())
     }
 
+    pub async fn pull_request_detail(
+        &self,
+        repository_id: i64,
+        pull_request_number: i32,
+    ) -> Result<Option<PullRequestDetail>, RepositoryError> {
+        let row = sqlx::query(
+            "SELECT repository_id, number, github_id, title, url, state, draft, merged,
+                    head_sha, base_sha, head_branch, base_branch, author_login, readiness
+             FROM pull_requests WHERE repository_id = $1 AND number = $2",
+        )
+        .bind(repository_id)
+        .bind(pull_request_number)
+        .fetch_optional(self.database.pool())
+        .await?;
+        Ok(row.map(|row| PullRequestDetail {
+            repository_id: row.get("repository_id"),
+            number: row.get("number"),
+            github_id: row.get("github_id"),
+            title: row.get("title"),
+            url: row.get("url"),
+            state: row.get("state"),
+            draft: row.get("draft"),
+            merged: row.get("merged"),
+            head_sha: row.get("head_sha"),
+            base_sha: row.get("base_sha"),
+            head_branch: row.get("head_branch"),
+            base_branch: row.get("base_branch"),
+            author_login: row.get("author_login"),
+            readiness: row.get("readiness"),
+        }))
+    }
+
+    pub async fn recent_events(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<EventDeliveryRow>, RepositoryError> {
+        let rows = sqlx::query(
+            "SELECT delivery_id, event_name, action, installation_id, repository_id,
+                    pull_request_number, payload_hash, supported, received_at, processed_at,
+                    processing_error
+             FROM event_deliveries
+             ORDER BY received_at DESC, delivery_id DESC
+             LIMIT $1",
+        )
+        .bind(limit.clamp(1, 100))
+        .fetch_all(self.database.pool())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| EventDeliveryRow {
+                delivery_id: row.get("delivery_id"),
+                event_name: row.get("event_name"),
+                action: row.get("action"),
+                installation_id: row.get("installation_id"),
+                repository_id: row.get("repository_id"),
+                pull_request_number: row.get("pull_request_number"),
+                payload_hash: row.get("payload_hash"),
+                supported: row.get("supported"),
+                received_at: row.get("received_at"),
+                processed_at: row.get("processed_at"),
+                processing_error: row.get("processing_error"),
+            })
+            .collect())
+    }
+
+    pub async fn recent_audit_entries(&self, limit: i64) -> Result<Vec<AuditRow>, RepositoryError> {
+        let rows = sqlx::query(
+            "SELECT id, repository_id, pull_request_number, job_id, actor_login,
+                    event_type, summary, evidence, created_at
+             FROM audit_entries
+             ORDER BY created_at DESC, id DESC
+             LIMIT $1",
+        )
+        .bind(limit.clamp(1, 100))
+        .fetch_all(self.database.pool())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| AuditRow {
+                id: row.get("id"),
+                repository_id: row.get("repository_id"),
+                pull_request_number: row.get("pull_request_number"),
+                job_id: row.get("job_id"),
+                actor_login: row.get("actor_login"),
+                event_type: row.get("event_type"),
+                summary: row.get("summary"),
+                evidence: row.get("evidence"),
+                created_at: row.get("created_at"),
+            })
+            .collect())
+    }
+
     pub async fn open_pull_requests_for_head(
         &self,
         repository_id: i64,
@@ -925,6 +1017,52 @@ pub struct PullRequestRow {
     pub url: String,
     pub state: String,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PullRequestDetail {
+    pub repository_id: i64,
+    pub number: i32,
+    pub github_id: i64,
+    pub title: String,
+    pub url: String,
+    pub state: String,
+    pub draft: bool,
+    pub merged: bool,
+    pub head_sha: String,
+    pub base_sha: String,
+    pub head_branch: String,
+    pub base_branch: String,
+    pub author_login: String,
+    pub readiness: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct EventDeliveryRow {
+    pub delivery_id: String,
+    pub event_name: String,
+    pub action: Option<String>,
+    pub installation_id: Option<i64>,
+    pub repository_id: Option<i64>,
+    pub pull_request_number: Option<i32>,
+    pub payload_hash: String,
+    pub supported: bool,
+    pub received_at: DateTime<Utc>,
+    pub processed_at: Option<DateTime<Utc>>,
+    pub processing_error: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AuditRow {
+    pub id: Uuid,
+    pub repository_id: Option<i64>,
+    pub pull_request_number: Option<i32>,
+    pub job_id: Option<Uuid>,
+    pub actor_login: Option<String>,
+    pub event_type: String,
+    pub summary: String,
+    pub evidence: serde_json::Value,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone)]

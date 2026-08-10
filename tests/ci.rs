@@ -3,7 +3,7 @@ use std::{path::Path, time::Duration};
 use pitools::{
     ci::{
         CiFailure, CiFailureInput, CiFailureKind, CiPatch, CiRepairPlan, WorktreePlan,
-        redact_ci_text, validate_patch_set,
+        prepare_ci_evidence, redact_ci_text, validate_patch_set,
     },
     policy::ValidationCommand,
 };
@@ -111,4 +111,20 @@ fn redacts_common_secret_markers_from_ci_evidence() {
     assert!(!redacted.contains("github_pat_example"));
     assert!(redacted.contains("[REDACTED]"));
     assert!(redacted.contains("error: failed"));
+}
+
+#[test]
+fn ci_evidence_preserves_actions_logs_and_annotations_with_redaction() {
+    let evidence = prepare_ci_evidence(
+        &serde_json::json!({"checks": [{"external_id": "81"}]}),
+        &serde_json::json!([{
+            "actions_log": "error: Authorization: Bearer ghp_example",
+            "annotations": [{"path": "src/lib.rs", "message": "assertion failed"}]
+        }]),
+    )
+    .expect("CI evidence serializes");
+
+    assert!(evidence.contains("assertion failed"));
+    assert!(evidence.contains("src/lib.rs"));
+    assert!(!evidence.contains("ghp_example"));
 }

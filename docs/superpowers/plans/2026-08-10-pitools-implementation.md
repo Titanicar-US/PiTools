@@ -24,7 +24,7 @@
 
 The initial implementation is present and validated through the local changed-scope gate. Delivered slices include the Rust control plane, GitHub App manifest/webhook handling, durable watchlist and job leases, living work-plan comments with approve/skip/cancel Check Run controls (including approval-wait skips/cancellations), deterministic feedback repair, typed approval-gated CI patch application, safe stack planning/base updates, the Pi sidecar protocol, container/Helm packaging, and the dev01 handoff.
 
-The remaining release prerequisites are external or intentionally fail-closed: GitHub credentials and authenticated UAT, remote/commit/publication authority, dev01/Flux rollout, provider-backed Pi execution, fork-head write scope, and full Actions log/annotation repair. Low-cardinality Prometheus metrics are delivered. The task checkboxes below are the original design checklist; this status and `CONTEXT.md` are the current delivery record.
+The remaining release prerequisites are external or intentionally fail-closed: GitHub credentials and authenticated UAT, remote/commit/publication authority, dev01/Flux rollout, provider-backed Pi execution, and fork-head write scope. Bounded Actions job-log and check-run annotation evidence is delivered; low-cardinality Prometheus metrics are delivered. The task checkboxes below are the original design checklist; this status and `CONTEXT.md` are the current delivery record.
 
 ---
 
@@ -114,7 +114,7 @@ The remaining release prerequisites are external or intentionally fail-closed: G
 - `GET /api/v1/watchlist` lists watched PRs with readiness and latest job state.
 - `GET /api/v1/watchlist/:id`, `GET /api/v1/events`, and `GET /api/v1/audit` return redacted operational state.
 - `POST /api/v1/reconcile` and `POST /api/v1/jobs/:id/cancel` require the admin bearer token.
-- `pitools doctor`, `pitools watchlist`, `pitools events`, `pitools reconcile`, and `pitools cancel` use the API contract.
+- `pitools doctor`, `pitools watchlist`, `pitools events`, `pitools audit`, `pitools reconcile`, and `pitools cancel` use the configured durable operator state.
 
 - [ ] Write API contract tests for authentication, pagination, redaction, readiness filters, and cancellation authorization.
 - [ ] Implement bearer-token verification against a stored hash, never accepting the raw token in logs or database rows.

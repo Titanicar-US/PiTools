@@ -9,6 +9,9 @@ use super::auth::InstallationToken;
 
 const MAX_PAGINATION_PAGES: usize = 100;
 const MAX_REPOSITORY_POLICY_BYTES: usize = 256 * 1024;
+const MAX_ACTIONS_LOG_BYTES: usize = 128 * 1024;
+const MAX_CHECK_ANNOTATION_BYTES: usize = 256 * 1024;
+const MAX_CHECK_RUN_ANNOTATIONS: usize = 100;
 
 #[derive(Clone)]
 pub struct GitHubClient {
@@ -133,6 +136,28 @@ impl GitHubClient {
         Err(GitHubClientError::PaginationLimit)
     }
 
+    async fn get_bounded_json<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        max_bytes: usize,
+        too_large: GitHubClientError,
+    ) -> Result<T, GitHubClientError> {
+        let url = self
+            .api_base
+            .join(path)
+            .map_err(|error| GitHubClientError::Client(error.to_string()))?;
+        let response = self.send_get(url).await?;
+        let body = read_bounded_body(
+            response,
+            self.token.token.expose_secret(),
+            max_bytes,
+            too_large,
+        )
+        .await?;
+        serde_json::from_slice(&body)
+            .map_err(|error| GitHubClientError::Response(error.to_string()))
+    }
+
     fn is_safe_pagination_url(&self, candidate: &Url) -> bool {
         candidate.scheme() == self.api_base.scheme()
             && candidate.host_str() == self.api_base.host_str()
@@ -223,6 +248,50 @@ impl GitHubClient {
             "repos/{owner}/{repository}/check-runs/{check_run_id}"
         ))
         .await
+    }
+
+    pub async fn download_workflow_job_logs(
+        &self,
+        owner: &str,
+        repository: &str,
+        job_id: i64,
+    ) -> Result<String, GitHubClientError> {
+        let url = self
+            .api_base
+            .join(&format!(
+                "repos/{owner}/{repository}/actions/jobs/{job_id}/logs"
+            ))
+            .map_err(|error| GitHubClientError::Client(error.to_string()))?;
+        let response = self.send_get(url).await?;
+        let body = read_bounded_body(
+            response,
+            self.token.token.expose_secret(),
+            MAX_ACTIONS_LOG_BYTES,
+            GitHubClientError::WorkflowLogTooLarge,
+        )
+        .await?;
+        String::from_utf8(body).map_err(|_| GitHubClientError::WorkflowLogNotUtf8)
+    }
+
+    pub async fn list_check_run_annotations(
+        &self,
+        owner: &str,
+        repository: &str,
+        check_run_id: i64,
+    ) -> Result<Vec<GitHubCheckAnnotation>, GitHubClientError> {
+        let annotations: Vec<GitHubCheckAnnotation> = self
+            .get_bounded_json(
+                &format!(
+                    "repos/{owner}/{repository}/check-runs/{check_run_id}/annotations?per_page=100&page=1"
+                ),
+                MAX_CHECK_ANNOTATION_BYTES,
+                GitHubClientError::CheckAnnotationsTooLarge,
+            )
+            .await?;
+        Ok(annotations
+            .into_iter()
+            .take(MAX_CHECK_RUN_ANNOTATIONS)
+            .collect())
     }
 
     pub async fn get_combined_status(
@@ -659,6 +728,20 @@ pub struct GitHubCheckRunOutput {
     pub text: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GitHubCheckAnnotation {
+    pub path: String,
+    pub start_line: Option<u32>,
+    pub end_line: Option<u32>,
+    pub start_column: Option<u32>,
+    pub end_column: Option<u32>,
+    pub annotation_level: Option<String>,
+    pub message: String,
+    pub title: Option<String>,
+    pub raw_details: Option<String>,
+    pub blob_href: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct CheckApp {
     pub id: i64,
@@ -884,6 +967,47 @@ fn next_link(headers: &HeaderMap) -> Result<Option<Url>, GitHubClientError> {
     Ok(None)
 }
 
+async fn read_bounded_body(
+    response: reqwest::Response,
+    token: &str,
+    max_bytes: usize,
+    too_large: GitHubClientError,
+) -> Result<Vec<u8>, GitHubClientError> {
+    let status = response.status();
+    if !status.is_success() {
+        return Err(GitHubClientError::Api {
+            status: status.as_u16(),
+            body: redact(
+                response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "unreadable response".into()),
+                token,
+            ),
+        });
+    }
+    if response
+        .content_length()
+        .is_some_and(|length| length > max_bytes as u64)
+    {
+        return Err(too_large);
+    }
+
+    let mut body = Vec::new();
+    let mut response = response;
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|error| GitHubClientError::Response(redact(error.to_string(), token)))?
+    {
+        if body.len() + chunk.len() > max_bytes {
+            return Err(too_large);
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
 async fn decode_response<T: DeserializeOwned>(
     response: reqwest::Response,
     token: &str,
@@ -934,4 +1058,10 @@ pub enum GitHubClientError {
     PaginationLimit,
     #[error("GitHub repository policy file exceeds the size limit")]
     RepositoryFileTooLarge,
+    #[error("GitHub Actions job log exceeds the size limit")]
+    WorkflowLogTooLarge,
+    #[error("GitHub Actions job log is not valid UTF-8")]
+    WorkflowLogNotUtf8,
+    #[error("GitHub check annotations exceed the size limit")]
+    CheckAnnotationsTooLarge,
 }

@@ -55,6 +55,35 @@ enum Command {
         #[arg(long)]
         pull_request_number: i32,
     },
+    /// List watched pull requests from the durable state store.
+    Watchlist {
+        /// Render machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// List recent webhook delivery metadata without raw payloads.
+    Events {
+        /// Maximum number of rows to return, capped at 100.
+        #[arg(long, default_value_t = 50)]
+        limit: i64,
+        /// Render machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// List recent redacted audit entries.
+    Audit {
+        /// Maximum number of rows to return, capped at 100.
+        #[arg(long, default_value_t = 50)]
+        limit: i64,
+        /// Render machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Request cancellation of a queued or active job.
+    Cancel {
+        /// Job UUID returned by reconcile or the operator API.
+        job_id: uuid::Uuid,
+    },
     /// Read a bearer token from stdin and print its Argon2id PHC hash.
     HashToken,
     /// Render the GitHub App Manifest JSON for an HTTPS public base URL.
@@ -176,6 +205,64 @@ async fn main() -> Result<()> {
                 })
                 .await?;
             println!("reconciliation job queued: {job_id}");
+        }
+        Command::Watchlist { json } => {
+            let config = AppConfig::from_env()?;
+            let database = Database::connect(config.database_url.expose_secret()).await?;
+            database.migrate().await?;
+            let rows = Repositories::new(database).open_pull_requests().await?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&rows)?);
+            } else {
+                for row in rows {
+                    println!(
+                        "{}#{} {} [{}] {}",
+                        row.repository_id, row.number, row.title, row.state, row.url
+                    );
+                }
+            }
+        }
+        Command::Events { limit, json } => {
+            let config = AppConfig::from_env()?;
+            let database = Database::connect(config.database_url.expose_secret()).await?;
+            database.migrate().await?;
+            let rows = Repositories::new(database).recent_events(limit).await?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&rows)?);
+            } else {
+                for row in rows {
+                    println!(
+                        "{} {} {} {}",
+                        row.received_at,
+                        row.delivery_id,
+                        row.event_name,
+                        row.action.as_deref().unwrap_or("-")
+                    );
+                }
+            }
+        }
+        Command::Audit { limit, json } => {
+            let config = AppConfig::from_env()?;
+            let database = Database::connect(config.database_url.expose_secret()).await?;
+            database.migrate().await?;
+            let rows = Repositories::new(database)
+                .recent_audit_entries(limit)
+                .await?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&rows)?);
+            } else {
+                for row in rows {
+                    println!("{} {} {}", row.created_at, row.event_type, row.summary);
+                }
+            }
+        }
+        Command::Cancel { job_id } => {
+            let config = AppConfig::from_env()?;
+            let database = Database::connect(config.database_url.expose_secret()).await?;
+            database.migrate().await?;
+            let nats = async_nats::connect(&config.nats_url).await.ok();
+            let changed = JobQueue::new(database, nats).request_cancel(job_id).await?;
+            println!("job {job_id} cancellation_requested={changed}");
         }
         Command::HashToken => {
             let mut token = String::new();
