@@ -20,11 +20,11 @@
 - Every behavior-changing feature has executable BDD scenarios as well as focused unit/contract tests.
 - `make check` is the local changed-scope gate. `make check-full` and `make quality-gates` are CI/post-merge commands only.
 
-## Implementation status (2026-08-10)
+## Implementation status (2026-08-11)
 
 The initial implementation is present and validated through the local changed-scope gate. Delivered slices include the Rust control plane, GitHub App manifest/webhook handling, durable watchlist and job leases, living work-plan comments with approve/skip/cancel Check Run controls (including approval-wait skips/cancellations), deterministic feedback repair, typed approval-gated CI patch application, safe stack planning/base updates, the Pi sidecar protocol, container/Helm packaging, and the dev01 handoff.
 
-The remaining release prerequisites are external or intentionally fail-closed: GitHub credentials and authenticated UAT, remote/commit/publication authority, dev01/Flux rollout, provider-backed Pi execution, and fork-head write scope. Bounded Actions job-log and check-run annotation evidence is delivered; low-cardinality Prometheus metrics are delivered. Deterministic feedback now records applied or rejected outcomes on the originating review comment before resolution, or in a PR-level outcome comment for issue comments, and persists rejection state so failed suggestions are not retried forever. The task checkboxes below are retained as the original design checklist; the evidence-based status here and `CONTEXT.md` are authoritative, and the unchecked items do not by themselves indicate missing implementation.
+The remaining release prerequisites are external or intentionally fail-closed: GitHub credentials and authenticated UAT, remote/commit/publication authority, dev01/Flux rollout, provider-backed Pi execution, and fork-head write scope. Bounded Actions job-log and check-run annotation evidence is delivered; low-cardinality Prometheus metrics are delivered. Deterministic feedback now records applied or rejected outcomes on the originating review comment before resolution, or in a PR-level outcome comment for issue comments, and persists rejection state so failed suggestions are not retried forever. Repair commits now carry deterministic `PiTools-Job`, `PiTools-Repair`, and `PiTools-Head` trailers. The task checkboxes below are retained as the original design checklist; the evidence-based status here and `CONTEXT.md` are authoritative, and the unchecked items do not by themselves indicate missing implementation.
 
 The changed-scope `make check` gate includes Rust formatting, the locked Rust and TypeScript test suites, the BDD suite, the publish contract, and the fail-closed Helm security render contract. The hosted pull-request workflow runs the same gate before independent core and runner image builds.
 
@@ -162,7 +162,7 @@ The changed-scope `make check` gate includes Rust formatting, the locked Rust an
 - [ ] Add fixtures for valid, overlapping, stale, multi-file, malformed, and prompt-injection-shaped suggestions.
 - [ ] Apply only exact patches under the repository root; reject path traversal, binary changes, oversized patches, and changes outside the comment scope.
 - [ ] Run configured validation in a resource-limited worker and capture command, exit status, and redacted output.
-- [ ] Require policy/approval before push; use the App bot identity and an audit trailer when committing.
+- [x] Require policy/approval before push; use the App bot identity and an audit trailer when committing.
 - [ ] Update the living comment and final summary; resolve the source feedback only after push and validation succeed.
 - [ ] Add BDD coverage for accept, reject, skip, cancel, validation failure, and stale feedback paths.
 

@@ -10,7 +10,7 @@
 ## Deliberate fail-closed boundaries
 
 - Human merge/approval remains outside PiTools.
-- CI Pi output is a bounded diagnosis/proposal; only exact allowlisted unified patches that declare and receive explicit Check Run approval, pass credential-free bubblewrap validation from a `.git`-free snapshot, pass exact staged-path and fresh-head reads, and record an auditable push may mutate a PR. Repository policy cannot disable this CI mutation gate.
+- CI Pi output is a bounded diagnosis/proposal; only exact allowlisted unified patches that declare and receive explicit Check Run approval, pass credential-free bubblewrap validation from a `.git`-free snapshot, pass exact staged-path and fresh-head reads, and record an auditable push with `PiTools-Job`, `PiTools-Repair`, and `PiTools-Head` trailers may mutate a PR. Repository policy cannot disable this CI mutation gate.
 - Approved feedback and CI repair pushes now re-read the exact remote branch head immediately before pushing, so branch movement after validation fails closed.
 - Review-comment automation outcomes are replied to on the originating review comment before the thread is resolved; issue-comment outcomes are recorded in a bounded PR-level comment because no review thread exists. Deterministic rejection is persisted so the same suggestion is not retried indefinitely, while operational failures leave feedback open.
 - Stack detection produces a deterministic order; declared stack base updates and branch rebases require explicit approval.

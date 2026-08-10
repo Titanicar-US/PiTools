@@ -1,8 +1,9 @@
 use pitools::workspace::{
-    RepositoryWorkspace, rebase_push_argv, remote_head_argv, validate_staged_diff_summary,
-    validate_staged_paths,
+    RepositoryWorkspace, audit_commit_message, rebase_push_argv, remote_head_argv,
+    validate_staged_diff_summary, validate_staged_paths,
 };
 use secrecy::SecretString;
+use uuid::Uuid;
 
 #[tokio::test]
 async fn rejects_untrusted_clone_coordinates_before_network_access() {
@@ -101,5 +102,20 @@ fn remote_head_check_uses_the_exact_branch_ref() {
             "origin".to_owned(),
             "refs/heads/feature/repair".to_owned(),
         ]
+    );
+}
+
+#[test]
+fn repair_commit_message_carries_auditable_job_and_head_trailers() {
+    let message = audit_commit_message(
+        "fix: repair failed CI check",
+        Uuid::nil(),
+        "ci",
+        "0123456789abcdef",
+    );
+
+    assert_eq!(
+        message,
+        "fix: repair failed CI check\n\nPiTools-Job: 00000000-0000-0000-0000-000000000000\nPiTools-Repair: ci\nPiTools-Head: 0123456789abcdef"
     );
 }

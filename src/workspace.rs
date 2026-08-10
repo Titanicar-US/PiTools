@@ -168,7 +168,12 @@ impl RepositoryWorkspace {
                 "commit".into(),
                 "--no-verify".into(),
                 "-m".into(),
-                "fix: apply automated review suggestion".into(),
+                audit_commit_message(
+                    "fix: apply automated review suggestion",
+                    lease.job_id,
+                    "feedback",
+                    expected_head_sha,
+                ),
             ],
         )
         .await?;
@@ -273,7 +278,12 @@ impl RepositoryWorkspace {
                 "commit".into(),
                 "--no-verify".into(),
                 "-m".into(),
-                "fix: repair failed CI check".into(),
+                audit_commit_message(
+                    "fix: repair failed CI check",
+                    lease.job_id,
+                    "ci",
+                    expected_head_sha,
+                ),
             ],
         )
         .await?;
@@ -810,6 +820,18 @@ pub fn remote_head_argv(branch: &str) -> Result<Vec<String>, WorkspaceError> {
         "origin".to_owned(),
         format!("refs/heads/{branch}"),
     ])
+}
+
+/// Build the deterministic audit trailers used on bot-authored repair commits.
+pub fn audit_commit_message(
+    subject: &str,
+    job_id: Uuid,
+    repair_kind: &str,
+    expected_head_sha: &str,
+) -> String {
+    format!(
+        "{subject}\n\nPiTools-Job: {job_id}\nPiTools-Repair: {repair_kind}\nPiTools-Head: {expected_head_sha}"
+    )
 }
 
 /// Verify that Git will commit exactly the files admitted by the repair plan.
