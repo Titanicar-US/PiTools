@@ -21,3 +21,4 @@
 - Gated immutable image publication to exact `vMAJOR.MINOR.PATCH` tag refs, including manual workflow dispatches.
 - Updated pinned GitHub Actions to current Node 24-compatible major releases after hosted CI reported the Node 20 deprecation warning.
 - Removed the dead unconfigured-router webhook placeholder so webhook intake is exposed only through the stateful verified receiver.
+- Added bounded applied/rejected replies to automation review comments before PiTools resolves the corresponding review thread, with durable rejected state preventing repeat attempts.

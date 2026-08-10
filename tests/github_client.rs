@@ -359,6 +359,33 @@ async fn resolves_review_threads_through_the_graphql_api() {
 }
 
 #[tokio::test]
+async fn replies_to_a_review_comment_through_the_review_reply_endpoint() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/repos/acme/widgets/pulls/7/comments/71/replies"))
+        .and(body_string_contains(
+            "\"body\":\"PiTools applied the suggestion\"",
+        ))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "id": 72,
+            "body": "PiTools applied the suggestion",
+            "html_url": "https://github.com/acme/widgets/pull/7#discussion_r72"
+        })))
+        .mount(&server)
+        .await;
+
+    let reply = client(&server)
+        .reply_to_review_comment("acme", "widgets", 7, 71, "PiTools applied the suggestion")
+        .await
+        .expect("review reply succeeds");
+    assert_eq!(reply.id, 72);
+    assert_eq!(
+        reply.body.as_deref(),
+        Some("PiTools applied the suggestion")
+    );
+}
+
+#[tokio::test]
 async fn updates_a_pull_request_base_branch_with_a_typed_patch_request() {
     let server = MockServer::start().await;
     Mock::given(method("PATCH"))

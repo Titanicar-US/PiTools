@@ -4,7 +4,10 @@ use std::{collections::HashSet, fs, process::Command};
 
 use cucumber::{World as _, given, then, when};
 use pitools::{
-    feedback::{Feedback, RepairDecision, RepairDisposition, repair_feedback},
+    feedback::{
+        Feedback, FeedbackReply, RepairDecision, RepairDisposition, render_feedback_reply,
+        repair_feedback,
+    },
     github::events::DeliveryEnvelope,
     github::manifest::validate_manifest_code,
     pr_controls::{
@@ -26,6 +29,8 @@ struct World {
     feedback_directory: Option<tempfile::TempDir>,
     feedback_applied: bool,
     feedback_contents: Option<String>,
+    feedback_outcome: Option<String>,
+    feedback_reply: Option<String>,
     manifest_code_rejected: bool,
     operator_commands_exposed: bool,
     rebase_default_rejected: bool,
@@ -407,6 +412,43 @@ fn applies_suggestion(world: &mut World) {
 fn only_suggested_lines_change(world: &mut World) {
     assert!(world.feedback_applied);
     assert_eq!(world.feedback_contents.as_deref(), Some("new\nsecond\n"));
+}
+
+#[given("an applied automation feedback outcome")]
+fn applied_feedback_outcome(world: &mut World) {
+    world.feedback_outcome = Some("applied".into());
+}
+
+#[given("a rejected automation feedback outcome")]
+fn rejected_feedback_outcome(world: &mut World) {
+    world.feedback_outcome = Some("rejected".into());
+}
+
+#[when("PiTools renders the feedback outcome comment")]
+fn renders_feedback_outcome_comment(world: &mut World) {
+    world.feedback_reply = Some(match world.feedback_outcome.as_deref() {
+        Some("applied") => render_feedback_reply(FeedbackReply::Applied {
+            path: "src/lib.rs",
+            commit: "0123456789abcdef",
+        }),
+        Some("rejected") => render_feedback_reply(FeedbackReply::Rejected),
+        other => panic!("unexpected feedback outcome: {other:?}"),
+    });
+}
+
+#[then("the outcome comment says the suggestion was applied and the thread is being resolved")]
+fn applied_feedback_comment_is_resolved(world: &mut World) {
+    let reply = world.feedback_reply.as_deref().expect("feedback reply");
+    assert!(reply.contains("applied"));
+    assert!(reply.contains("thread is being resolved"));
+}
+
+#[then("the outcome comment says the suggestion was rejected and human follow-up is required")]
+fn rejected_feedback_comment_requires_human_follow_up(world: &mut World) {
+    let reply = world.feedback_reply.as_deref().expect("feedback reply");
+    assert!(reply.contains("rejected"));
+    assert!(reply.contains("human follow-up remains required"));
+    assert!(reply.contains("thread is being resolved"));
 }
 
 #[given("an unsafe GitHub App manifest conversion code")]

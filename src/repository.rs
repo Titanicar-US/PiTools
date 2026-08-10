@@ -174,7 +174,7 @@ impl Repositories {
              ON CONFLICT (id) DO UPDATE SET actor_login = EXCLUDED.actor_login,
                actor_type = EXCLUDED.actor_type, body = EXCLUDED.body,
                resolved = EXCLUDED.resolved
-                 OR (feedback_items.repair_state = 'applied' AND feedback_items.resolution_eligible),
+                 OR (feedback_items.repair_state IN ('applied', 'rejected') AND feedback_items.resolved),
                is_automation = EXCLUDED.is_automation,
                updated_at = NOW()",
         )
@@ -205,7 +205,7 @@ impl Repositories {
              ON CONFLICT (id) DO UPDATE SET actor_login = EXCLUDED.actor_login,
                actor_type = EXCLUDED.actor_type, body = EXCLUDED.body,
                resolved = EXCLUDED.resolved
-                 OR (feedback_items.repair_state = 'applied' AND feedback_items.resolution_eligible),
+                 OR (feedback_items.repair_state IN ('applied', 'rejected') AND feedback_items.resolved),
                is_automation = EXCLUDED.is_automation,
                updated_at = NOW()",
         )
@@ -238,12 +238,27 @@ impl Repositories {
         Ok(())
     }
 
+    pub async fn mark_feedback_rejected(&self, feedback_id: &str) -> Result<(), RepositoryError> {
+        sqlx::query(
+            "UPDATE feedback_items
+             SET resolved = TRUE,
+                 repair_state = 'rejected',
+                 resolution_eligible = FALSE,
+                 updated_at = NOW()
+             WHERE id = $1",
+        )
+        .bind(feedback_id)
+        .execute(self.database.pool())
+        .await?;
+        Ok(())
+    }
+
     pub async fn feedback_resolution_eligible(
         &self,
         feedback_id: &str,
     ) -> Result<bool, RepositoryError> {
         Ok(sqlx::query_scalar::<_, bool>(
-            "SELECT resolution_eligible FROM feedback_items WHERE id = $1",
+            "SELECT resolution_eligible OR repair_state = 'rejected' FROM feedback_items WHERE id = $1",
         )
         .bind(feedback_id)
         .fetch_optional(self.database.pool())

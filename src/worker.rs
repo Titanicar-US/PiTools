@@ -512,25 +512,24 @@ impl WorkerRuntime {
                 "pull request head changed since the repair plan was created".into(),
             ));
         }
-        let review_thread_id = if let Some(comment_id) = feedback.id.strip_prefix("review-comment:")
-        {
-            let comment_id = comment_id
+        let comment_id = if let Some(comment_id) = feedback.id.strip_prefix("review-comment:") {
+            comment_id
                 .parse::<i64>()
-                .map_err(|_| WorkerError::PlanSerialization("invalid review comment id".into()))?;
-            github
-                .review_thread_id_for_comment(
-                    &context.repository.owner,
-                    &context.repository.name,
-                    context.pull_request.number,
-                    comment_id,
-                )
-                .await?
-                .ok_or(WorkerError::ReviewThreadNotFound(comment_id))?
+                .map_err(|_| WorkerError::PlanSerialization("invalid review comment id".into()))?
         } else {
             return Err(WorkerError::MutationAdmissionRequired(
                 "only review comments expose a resolvable review thread".into(),
             ));
         };
+        let review_thread_id = github
+            .review_thread_id_for_comment(
+                &context.repository.owner,
+                &context.repository.name,
+                context.pull_request.number,
+                comment_id,
+            )
+            .await?
+            .ok_or(WorkerError::ReviewThreadNotFound(comment_id))?;
         let workspace = RepositoryWorkspace::clone_branch(
             &context.repository.owner,
             &context.repository.name,
@@ -541,7 +540,7 @@ impl WorkerRuntime {
         .await?;
         let feedback_id = feedback.id.clone();
         context.lease.ensure().await?;
-        let outcome = workspace
+        let outcome = match workspace
             .apply_feedback(
                 context.lease,
                 &context.policy.automation_actors,
@@ -557,6 +556,50 @@ impl WorkerRuntime {
                 &context.pull_request.head_branch,
                 &context.pull_request.head_sha,
                 &context.policy.validation_commands,
+            )
+            .await
+        {
+            Ok(outcome) => outcome,
+            Err(error) if is_deterministic_feedback_rejection(&error) => {
+                context.lease.ensure().await?;
+                github
+                    .reply_to_review_comment(
+                        &context.repository.owner,
+                        &context.repository.name,
+                        context.pull_request.number,
+                        comment_id,
+                        &crate::feedback::render_feedback_reply(
+                            crate::feedback::FeedbackReply::Rejected,
+                        ),
+                    )
+                    .await?;
+                context.lease.ensure().await?;
+                github.resolve_review_thread(&review_thread_id).await?;
+                self.repositories
+                    .mark_feedback_rejected(&feedback_id)
+                    .await?;
+                return Ok(json!({
+                    "completed": true,
+                    "changes": ["rejected automated feedback after deterministic validation"],
+                    "tests": [],
+                    "remaining_blockers": ["human follow-up remains required for the rejected automation suggestion"],
+                    "feedback_disposition": "rejected",
+                    "resolution_eligible": false,
+                }));
+            }
+            Err(error) => return Err(error.into()),
+        };
+        context.lease.ensure().await?;
+        github
+            .reply_to_review_comment(
+                &context.repository.owner,
+                &context.repository.name,
+                context.pull_request.number,
+                comment_id,
+                &crate::feedback::render_feedback_reply(crate::feedback::FeedbackReply::Applied {
+                    path: &outcome.path,
+                    commit: &outcome.commit,
+                }),
             )
             .await?;
         context.lease.ensure().await?;
@@ -1148,6 +1191,17 @@ fn parse_policy(source: &str) -> Result<Policy, WorkerError> {
         Ok(Policy::default())
     } else {
         Policy::from_yaml(source).map_err(|error| WorkerError::Policy(error.to_string()))
+    }
+}
+
+fn is_deterministic_feedback_rejection(error: &crate::workspace::WorkspaceError) -> bool {
+    match error {
+        crate::workspace::WorkspaceError::Feedback(error) => {
+            !matches!(error, crate::feedback::FeedbackError::Io(_))
+        }
+        crate::workspace::WorkspaceError::RepairNotApplied
+        | crate::workspace::WorkspaceError::ValidationFailed { .. } => true,
+        _ => false,
     }
 }
 

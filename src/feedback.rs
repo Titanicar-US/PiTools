@@ -32,6 +32,36 @@ pub enum RepairDisposition {
     Applied,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FeedbackReply<'a> {
+    Applied { path: &'a str, commit: &'a str },
+    Rejected,
+}
+
+pub fn render_feedback_reply(reply: FeedbackReply<'_>) -> String {
+    match reply {
+        FeedbackReply::Applied { path, commit } => format!(
+            "PiTools applied this approved automation suggestion to `{}` and pushed commit `{}` after configured validation passed. The review thread is being resolved.",
+            safe_reply_fragment(path),
+            safe_reply_fragment(commit)
+        ),
+        FeedbackReply::Rejected => "PiTools rejected this automation suggestion after deterministic validation failed. No branch change was accepted. The review thread is being resolved; human follow-up remains required.".into(),
+    }
+}
+
+fn safe_reply_fragment(value: &str) -> String {
+    let fragment: String = value
+        .chars()
+        .filter(|character| !matches!(character, '`' | '\r' | '\n'))
+        .take(128)
+        .collect();
+    if fragment.is_empty() {
+        "(unavailable)".into()
+    } else {
+        fragment
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepairOutcome {
     pub disposition: RepairDisposition,

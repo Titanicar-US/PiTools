@@ -465,6 +465,23 @@ impl GitHubClient {
         .await
     }
 
+    pub async fn reply_to_review_comment(
+        &self,
+        owner: &str,
+        repository: &str,
+        pull_request_number: i32,
+        comment_id: i64,
+        body: &str,
+    ) -> Result<GitHubComment, GitHubClientError> {
+        self.post_json(
+            &format!(
+                "repos/{owner}/{repository}/pulls/{pull_request_number}/comments/{comment_id}/replies"
+            ),
+            &IssueCommentRequest { body },
+        )
+        .await
+    }
+
     pub async fn update_pull_request_base(
         &self,
         owner: &str,

@@ -12,7 +12,7 @@ The Pi worker defaults to a deterministic diagnosis-only runtime and communicate
 - Signed webhook intake with delivery deduplication, open-PR inventory recovery, and periodic reconciliation.
 - Durable PR watchlist, advisory readiness reasons, API, CLI, and audit history.
 - Living progress comments, final change summaries, and GitHub-native Approve/Skip/Cancel Check Run actions.
-- Deterministic configured-automation feedback repair after an authorized plan approval.
+- Deterministic configured-automation feedback repair after an authorized plan approval, with bounded applied/rejected replies on the original review thread before PiTools resolves it.
 - GitHub Actions diagnosis with bounded check-run output, first-page annotations, and plain-text job logs redacted before Pi receives them; typed, allowlisted Pi patch proposals are applied only after approval in an ephemeral worktree, validation, and a fresh-head check.
 - Explicit PR stack ordering, approved base-branch updates, and branch-history rebases; force-with-lease rewrites remain disabled unless both `allow_bot_force_push: true` and an exact `bot_owned_branches` entry authorize the branch.
 
