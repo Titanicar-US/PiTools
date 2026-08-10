@@ -11,6 +11,16 @@ if ! grep -Fq -- '  pull_request:' "${image_workflow}"; then
   echo "image validation must run on pull requests" >&2
   exit 1
 fi
+validate_image_block="$(sed -n '/^  validate-image:/,/^  publish-image:/p' "${image_workflow}")"
+if ! grep -Fq -- '          docker build' <<<"${validate_image_block}" ||
+  ! grep -Fq -- '            --platform linux/amd64' <<<"${validate_image_block}"; then
+  echo "pull-request image validation must build with the runner Docker CLI" >&2
+  exit 1
+fi
+if grep -Eq 'docker/(setup-buildx|build-push)-action@' <<<"${validate_image_block}"; then
+  echo "pull-request image validation must not invoke the release Docker actions" >&2
+  exit 1
+fi
 if ! grep -Fq -- "    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')" "${image_workflow}"; then
   echo "image publication must run only for v-prefixed tags" >&2
   exit 1
