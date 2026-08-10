@@ -11,7 +11,7 @@ The Pi worker defaults to a deterministic diagnosis-only runtime and communicate
 - GitHub App Manifest setup and installation validation.
 - Signed webhook intake with delivery deduplication, installation suspend/delete and repository-removal handling, open-PR inventory recovery, and periodic reconciliation.
 - Durable PR watchlist, protected-branch-aware readiness reasons, per-PR job/audit/delivery history in the API and CLI, and operator audit history.
-- Living progress comments with a visible approval fingerprint, final change summaries, and GitHub-native Approve/Skip/Cancel Check Run actions.
+- Living progress comments with a visible approval fingerprint, final change summaries, and GitHub-native Approve/Skip/Cancel Check Run actions bound to the originating repository and pull request.
 - Deterministic configured-automation feedback repair after an authorized plan approval, with bounded applied/rejected replies on original review threads or PR-level outcome comments for issue comments.
 - GitHub Actions diagnosis with bounded check-run output, first-page annotations, and plain-text job logs redacted before Pi receives them; typed, allowlisted Pi patch proposals are applied only after approval in an ephemeral worktree, credential-free bubblewrap validation, exact staged-path verification, and a fresh-head check.
 - Pi diagnosis requests include only bounded contents of configured repair paths at the exact PR head; the Pi sidecar receives no repository volume or GitHub credential.

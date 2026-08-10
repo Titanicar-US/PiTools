@@ -10,7 +10,7 @@ use crate::{
     policy::Policy,
     pr_controls::{FinalSummary, PlanItem, WorkPlanComment},
     queue::JobQueue,
-    repository::{AuditEntry, Repositories},
+    repository::{AuditEntry, ControlContext, Repositories},
 };
 
 pub struct WorkCoordinator {
@@ -237,6 +237,19 @@ pub async fn process_check_run_control(
     let Some(context) = repositories.control_context(control.check_run_id).await? else {
         return Ok(ControlDisposition::UnknownCheckRun);
     };
+    if !control_delivery_matches_context(delivery, &context) {
+        repositories
+            .record_job_control(
+                context.job_id,
+                &delivery.delivery_id,
+                &control.action,
+                &control.actor_login,
+                None,
+                "rejected-context",
+            )
+            .await?;
+        return Ok(ControlDisposition::RejectedContext);
+    }
     let policy = if context.policy_yaml.trim().is_empty() {
         Policy::default()
     } else {
@@ -350,10 +363,21 @@ pub async fn process_check_run_control(
     }
 }
 
+/// Keep a Check Run requested action bound to the repository and pull request
+/// that created the persisted work plan. Missing identity fields fail closed.
+pub fn control_delivery_matches_context(
+    delivery: &crate::github::events::DeliveryEnvelope,
+    context: &ControlContext,
+) -> bool {
+    delivery.repository_id == Some(context.repository_id)
+        && delivery.pull_request_number == Some(context.pull_request_number)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlDisposition {
     NotAControlEvent,
     UnknownCheckRun,
+    RejectedContext,
     RejectedUnknown,
     RejectedUnauthorized,
     Duplicate,

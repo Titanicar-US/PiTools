@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Bound Check Run requested-action controls to the persisted repository and pull request context, rejecting cross-PR or cross-repository control attempts before queue mutation.
 - Made `pitools doctor` follow GitHub App installation pagination links and sort reported account names deterministically.
 - Made `make check` enforce Rust formatting and the fail-closed Helm security render contract.
 - Bootstrapped the Rust GitHub App control plane, signed webhook receiver, durable Postgres watchlist, readiness evaluation, operator API, and CLI.

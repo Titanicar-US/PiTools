@@ -26,6 +26,11 @@ Feature: pull request work-plan controls
     When the pull request author requests cancellation
     Then all remaining work is cancelled
 
+  Scenario: a Check Run action cannot cross pull request context
+    Given a Check Run action from another pull request
+    When PiTools validates the Check Run action context
+    Then the Check Run action is rejected before queue mutation
+
   Scenario: bot branch history rewrites require explicit authorization
     Given a stack branch requires a history rewrite
     Then history rewrites are allowed only for an explicit bot-owned branch

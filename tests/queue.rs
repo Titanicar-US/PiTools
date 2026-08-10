@@ -1,8 +1,10 @@
 use chrono::{Duration, Utc};
 use pitools::{
     db::Database,
+    github::events::DeliveryEnvelope,
     queue::{JobKind, JobQueue, JobSpec},
     repository::Repositories,
+    workflow::process_check_run_control,
 };
 use sqlx::{AssertSqlSafe, PgPool, postgres::PgPoolOptions};
 use url::Url;
@@ -180,6 +182,61 @@ async fn postgres_open_watchlist_query_returns_active_pull_requests() {
     assert_eq!(rows[0].repository_id, fixture.repository_id);
     assert_eq!(rows[0].number, 7);
 
+    fixture.cleanup().await;
+}
+
+#[tokio::test]
+async fn check_run_control_rejects_a_mismatched_pull_request_context() {
+    let Some(fixture) = PostgresFixture::start().await else {
+        return;
+    };
+    sqlx::query(
+        "INSERT INTO pull_requests
+            (repository_id, number, github_id, title, url, state, head_sha, base_sha,
+             head_branch, base_branch, author_login, watched)
+         VALUES ($1, 7, 1007, 'PR', 'https://github.com/acme/widgets/pull/7', 'open',
+                 'head', 'base', 'feature', 'main', 'author', TRUE)",
+    )
+    .bind(fixture.repository_id)
+    .execute(fixture.database.pool())
+    .await
+    .expect("insert control-context pull request");
+
+    let queue = fixture.queue();
+    let job_id = queue
+        .enqueue(fixture.spec(7, JobKind::CiRepair, "control-context"))
+        .await
+        .expect("enqueue control-context job");
+    sqlx::query("UPDATE jobs SET check_run_id = 9001 WHERE id = $1")
+        .bind(job_id)
+        .execute(fixture.database.pool())
+        .await
+        .expect("link control-context check run");
+
+    let payload = serde_json::json!({
+        "action": "requested_action",
+        "installation": {"id": fixture.installation_id},
+        "repository": {"id": fixture.repository_id},
+        "check_run": {"id": 9001, "pull_requests": [{"number": 8}]},
+        "requested_action": {"identifier": "cancel-run"},
+        "sender": {"login": "author"}
+    });
+    let envelope = DeliveryEnvelope::from_payload(
+        "mismatched-context".into(),
+        "check_run".into(),
+        payload.clone(),
+        serde_json::to_vec(&payload).expect("serialize control-context payload"),
+    );
+
+    let disposition = process_check_run_control(
+        &Repositories::new(fixture.database.clone()),
+        &queue,
+        &envelope,
+    )
+    .await
+    .expect("process mismatched control context");
+
+    assert_eq!(format!("{disposition:?}"), "RejectedContext");
     fixture.cleanup().await;
 }
 

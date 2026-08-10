@@ -25,9 +25,12 @@ use pitools::{
         WorkPlanComment, apply_control, bind_approval_details,
     },
     readiness::evaluate,
+    repository::ControlContext,
     webhook::verify_signature,
+    workflow::control_delivery_matches_context,
 };
 use serde_json::json;
+use uuid::Uuid;
 
 #[derive(Debug, Default, cucumber::World)]
 struct World {
@@ -63,6 +66,8 @@ struct World {
     readiness_snapshot: Option<ReadinessSnapshot>,
     notification_body: Option<String>,
     github_app_status: Option<GitHubAppStatus>,
+    control_context: Option<(DeliveryEnvelope, ControlContext)>,
+    control_context_rejected: bool,
 }
 
 #[given("a GitHub App is authenticated with selected installations")]
@@ -93,6 +98,42 @@ fn reports_github_app_status(world: &mut World) {
     assert!(body.contains("installations=2"));
     assert!(body.contains("Titanicar-US"));
     assert!(body.contains("PiTools-Test"));
+}
+
+#[given("a Check Run action from another pull request")]
+fn check_run_action_from_another_pull_request(world: &mut World) {
+    let payload = json!({
+        "action": "requested_action",
+        "repository": {"id": 2},
+        "check_run": {"id": 9, "pull_requests": [{"number": 8}]},
+        "requested_action": {"identifier": "cancel-run"},
+        "sender": {"login": "pr-author"}
+    });
+    let delivery = DeliveryEnvelope::from_payload(
+        "control-context".into(),
+        "check_run".into(),
+        payload.clone(),
+        serde_json::to_vec(&payload).expect("serialize control-context payload"),
+    );
+    let context = ControlContext {
+        job_id: Uuid::nil(),
+        repository_id: 2,
+        pull_request_number: 7,
+        pr_author: "pr-author".into(),
+        policy_yaml: String::new(),
+    };
+    world.control_context = Some((delivery, context));
+}
+
+#[when("PiTools validates the Check Run action context")]
+fn validates_check_run_action_context(world: &mut World) {
+    let (delivery, context) = world.control_context.as_ref().expect("control context");
+    world.control_context_rejected = !control_delivery_matches_context(delivery, context);
+}
+
+#[then("the Check Run action is rejected before queue mutation")]
+fn rejects_cross_context_check_run_action(world: &mut World) {
+    assert!(world.control_context_rejected);
 }
 
 #[given("a PiTools work plan is about to start")]
