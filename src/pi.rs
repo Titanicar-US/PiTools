@@ -142,30 +142,7 @@ impl PiWorker {
             .ok_or(PiError::EmptyOutput)?;
         let parsed: PiJobResult = serde_json::from_slice(value)
             .map_err(|error| PiError::InvalidResult(error.to_string()))?;
-        if parsed.protocol_version != request.protocol_version
-            || parsed.job_id != request.job_id
-            || parsed.nonce != request.nonce
-            || !(0.0..=1.0).contains(&parsed.confidence)
-        {
-            return Err(PiError::BindingMismatch);
-        }
-        if parsed
-            .proposed_files
-            .iter()
-            .any(|path| !request.allowed_paths.iter().any(|allowed| allowed == path))
-        {
-            return Err(PiError::PathNotAllowed);
-        }
-        if !parsed.proposed_patches.is_empty() {
-            validate_patch_set(&parsed.proposed_patches, &request.allowed_paths)
-                .map_err(|error| PiError::InvalidResult(error.to_string()))?;
-        }
-        let serialized = serde_json::to_string(&parsed)
-            .map_err(|error| PiError::Serialization(error.to_string()))?;
-        if contains_secret_like(&serialized) {
-            return Err(PiError::SecretLikeOutput);
-        }
-        Ok(parsed)
+        validate_result(request, &parsed)
     }
 }
 
@@ -215,6 +192,9 @@ fn validate_result(request: &PiJobRequest, parsed: &PiJobResult) -> Result<PiJob
         .any(|path| !request.allowed_paths.iter().any(|allowed| allowed == path))
     {
         return Err(PiError::PathNotAllowed);
+    }
+    if !parsed.proposed_patches.is_empty() && !parsed.requires_approval {
+        return Err(PiError::ApprovalRequired);
     }
     if !parsed.proposed_patches.is_empty() {
         validate_patch_set(&parsed.proposed_patches, &request.allowed_paths)
@@ -301,6 +281,8 @@ pub enum PiError {
     InvalidResult(String),
     #[error("Pi worker result was not bound to its request")]
     BindingMismatch,
+    #[error("Pi worker typed patches require explicit approval")]
+    ApprovalRequired,
     #[error("Pi worker proposed a path outside the request allowlist")]
     PathNotAllowed,
     #[error("Pi worker output contained secret-like material")]

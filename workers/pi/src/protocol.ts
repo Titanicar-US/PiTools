@@ -124,6 +124,9 @@ export function validateProtocolResult(
   ) {
     throw new Error("PiTools result is not bound to the request");
   }
+  if (result.proposedPatches && result.proposedPatches.length > 0 && !result.requiresApproval) {
+    throw new Error("PiTools typed patches must require explicit approval");
+  }
   assertAllowedPaths(result.proposedFiles, request.allowedPaths);
   assertAllowedPaths(
     result.proposedPatches?.map((patch) => patch.path) ?? [],

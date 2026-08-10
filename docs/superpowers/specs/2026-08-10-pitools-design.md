@@ -42,6 +42,7 @@ PiTools publishes a container image and reusable Helm chart. The production prof
 - Webhooks require `X-Hub-Signature-256` verification and `X-GitHub-Delivery` idempotency.
 - The App's private key and webhook secret are never exposed to Pi, repository commands, comments, or logs.
 - Repository policy is versioned in `.pitools.yml`. Service-level invariants cannot be weakened by that file: PiTools cannot merge, cannot export secrets, and does not force-push by default.
+- Typed CI patches always require an explicit Check Run approval; repository policy cannot disable this mutation gate, and Pi rejects any patch result that does not declare approval.
 - Feedback automation is limited to configured automation actors. Human feedback is recorded and surfaced but is not automatically changed.
 - Suggested changes are applied only after exact extraction, isolated worktree validation, configured checks, and policy approval.
 - Future CI/feedback repair executes in an ephemeral least-privileged worker with bounded resources and provider/allowlisted network access.

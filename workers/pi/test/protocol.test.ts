@@ -177,3 +177,28 @@ test("validates bounded patch proposals against the request allowlist", () => {
     /outside the allowlist/,
   );
 });
+
+test("rejects typed patches that do not require explicit approval", () => {
+  const result = {
+    protocolVersion: PROTOCOL_VERSION,
+    jobId: "job-1",
+    nonce: "nonce-1",
+    diagnosis: "test failure",
+    confidence: 0.8,
+    proposedFiles: ["src/main.rs"],
+    proposedPatches: [
+      {
+        path: "src/main.rs",
+        unifiedDiff: "--- a/src/main.rs\n+++ b/src/main.rs\n@@ -1 +1 @@\n-old\n+new\n",
+      },
+    ],
+    validationCommands: ["cargo test"],
+    risks: [],
+    requiresApproval: false,
+  };
+
+  assert.throws(
+    () => validateProtocolResult(result, request),
+    /must require explicit approval/,
+  );
+});

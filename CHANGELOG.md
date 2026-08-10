@@ -22,3 +22,4 @@
 - Updated pinned GitHub Actions to current Node 24-compatible major releases after hosted CI reported the Node 20 deprecation warning.
 - Removed the dead unconfigured-router webhook placeholder so webhook intake is exposed only through the stateful verified receiver.
 - Added bounded applied/rejected replies to automation review comments and PR-level outcome comments for issue comments, with durable rejected state preventing repeat attempts.
+- Hardened typed CI repair admission so provider patches cannot bypass explicit Check Run approval, even when repository policy disables general approval.

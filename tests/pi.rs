@@ -34,3 +34,37 @@ async fn pi_worker_rejects_shell_wrappers_before_starting_them() {
     let error = worker.execute(&request()).await.expect_err("shell denied");
     assert!(error.to_string().contains("unsafe control"));
 }
+
+#[tokio::test]
+async fn pi_worker_rejects_typed_patches_that_do_not_require_approval() {
+    let request = request();
+    let result = serde_json::json!({
+        "protocolVersion": request.protocol_version,
+        "jobId": request.job_id,
+        "nonce": request.nonce,
+        "diagnosis": "test failure",
+        "confidence": 0.8,
+        "proposedFiles": ["src/lib.rs"],
+        "proposedPatches": [{
+            "path": "src/lib.rs",
+            "unifiedDiff": "--- a/src/lib.rs\n+++ b/src/lib.rs\n@@ -1 +1 @@\n-old\n+new\n"
+        }],
+        "validationCommands": ["cargo test"],
+        "risks": [],
+        "requiresApproval": false
+    });
+    let worker = PiWorker {
+        command: vec![
+            "printf".into(),
+            "%s".into(),
+            serde_json::to_string(&result).unwrap(),
+        ],
+        timeout: Duration::from_secs(1),
+    };
+
+    let error = worker
+        .execute(&request)
+        .await
+        .expect_err("typed mutation without approval must fail closed");
+    assert!(error.to_string().contains("explicit approval"));
+}

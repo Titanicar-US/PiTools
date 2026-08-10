@@ -37,6 +37,7 @@ struct World {
     rebase_default_rejected: bool,
     rebase_explicit_allowed: bool,
     ci_evidence: Option<String>,
+    ci_admission_rejected: bool,
     metrics_body: Option<String>,
 }
 
@@ -305,6 +306,24 @@ fn actions_evidence_is_retained(world: &mut World) {
     assert!(evidence.contains("test failed"));
     assert!(evidence.contains("src/lib.rs"));
     assert!(evidence.contains("assertion failed"));
+}
+
+#[given("a typed CI repair patch is proposed without approval")]
+fn typed_ci_patch_without_approval(world: &mut World) {
+    world.ci_admission_rejected = false;
+}
+
+#[when("PiTools admits the CI mutation")]
+fn admits_ci_mutation(world: &mut World) {
+    world.ci_admission_rejected = matches!(
+        pitools::ci::admit_ci_mutation(1, false, true),
+        Err(pitools::ci::CiError::ApprovalRequired)
+    );
+}
+
+#[then("the CI mutation is rejected without explicit approval")]
+fn ci_mutation_is_rejected_without_approval(world: &mut World) {
+    assert!(world.ci_admission_rejected);
 }
 
 #[given("PiTools has received a webhook")]

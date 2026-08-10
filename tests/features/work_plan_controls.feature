@@ -40,6 +40,11 @@ Feature: pull request work-plan controls
     When PiTools prepares the Actions diagnosis envelope
     Then the bounded evidence retains the Actions log and annotation
 
+  Scenario: typed CI patches cannot bypass explicit approval
+    Given a typed CI repair patch is proposed without approval
+    When PiTools admits the CI mutation
+    Then the CI mutation is rejected without explicit approval
+
   Scenario: operator metrics expose low-cardinality webhook counters
     Given PiTools has received a webhook
     When the operator reads Prometheus metrics

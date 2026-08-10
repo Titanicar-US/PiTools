@@ -19,7 +19,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
-    ci::prepare_ci_evidence,
+    ci::{CiMutationAdmission, admit_ci_mutation, prepare_ci_evidence},
     github::{
         auth::{GitHubAppAuth, InstallationTokenScope},
         client::GitHubClient,
@@ -709,25 +709,39 @@ impl WorkerRuntime {
                 "requires_approval": true,
             }));
         }
-        if context.policy.require_approval && !plan_is_approved(&job.plan) {
-            let serialized = serde_json::to_value(&pi_result)
-                .map_err(|error| WorkerError::PiSerialization(error.to_string()))?;
-            return Ok(json!({
-                "completed": false,
-                "waiting_approval": true,
-                "approval_details": {"pi_result": serialized},
-                "changes": ["received a typed CI repair proposal"],
-                "tests": [],
-                "remaining_blockers": [
-                    "an authorized reviewer must approve the typed patch before it is applied"
-                ],
-                "diagnosis": pi_result.diagnosis,
-                "confidence": pi_result.confidence,
-                "proposed_files": pi_result.proposed_files,
-                "validation_commands": pi_result.validation_commands,
-                "risks": pi_result.risks,
-                "requires_approval": true,
-            }));
+        match admit_ci_mutation(
+            pi_result.proposed_patches.len(),
+            pi_result.requires_approval,
+            plan_is_approved(&job.plan),
+        )
+        .map_err(|error| WorkerError::MutationAdmissionRequired(error.to_string()))?
+        {
+            CiMutationAdmission::NoMutation => {
+                return Err(WorkerError::MutationAdmissionRequired(
+                    "CI mutation admission was requested without a typed patch".into(),
+                ));
+            }
+            CiMutationAdmission::WaitingApproval => {
+                let serialized = serde_json::to_value(&pi_result)
+                    .map_err(|error| WorkerError::PiSerialization(error.to_string()))?;
+                return Ok(json!({
+                    "completed": false,
+                    "waiting_approval": true,
+                    "approval_details": {"pi_result": serialized},
+                    "changes": ["received a typed CI repair proposal"],
+                    "tests": [],
+                    "remaining_blockers": [
+                        "an authorized reviewer must approve the typed patch before it is applied"
+                    ],
+                    "diagnosis": pi_result.diagnosis,
+                    "confidence": pi_result.confidence,
+                    "proposed_files": pi_result.proposed_files,
+                    "validation_commands": pi_result.validation_commands,
+                    "risks": pi_result.risks,
+                    "requires_approval": true,
+                }));
+            }
+            CiMutationAdmission::Admitted => {}
         }
 
         let current_pull_request = github

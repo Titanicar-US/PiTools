@@ -2,8 +2,8 @@ use std::{path::Path, time::Duration};
 
 use pitools::{
     ci::{
-        CiFailure, CiFailureInput, CiFailureKind, CiPatch, CiRepairPlan, WorktreePlan,
-        prepare_ci_evidence, redact_ci_text, validate_patch_set,
+        CiFailure, CiFailureInput, CiFailureKind, CiMutationAdmission, CiPatch, CiRepairPlan,
+        WorktreePlan, admit_ci_mutation, prepare_ci_evidence, redact_ci_text, validate_patch_set,
     },
     policy::ValidationCommand,
 };
@@ -30,6 +30,22 @@ fn ci_failure_classification_and_typed_plan_are_deterministic() {
         plan.validation_commands[0].argv(),
         &["cargo", "test", "--locked"]
     );
+}
+
+#[test]
+fn typed_ci_mutation_requires_explicit_approval_even_when_policy_allows_automation() {
+    assert_eq!(
+        admit_ci_mutation(1, true, false).expect("unapproved patch is a waiting state"),
+        CiMutationAdmission::WaitingApproval
+    );
+    assert_eq!(
+        admit_ci_mutation(1, true, true).expect("approved patch is admitted"),
+        CiMutationAdmission::Admitted
+    );
+    assert!(matches!(
+        admit_ci_mutation(1, false, true),
+        Err(pitools::ci::CiError::ApprovalRequired)
+    ));
 }
 
 #[test]

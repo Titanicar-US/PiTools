@@ -10,7 +10,7 @@
 ## Deliberate fail-closed boundaries
 
 - Human merge/approval remains outside PiTools.
-- CI Pi output is a bounded diagnosis/proposal; only exact allowlisted unified patches with explicit approval, a fresh head read, configured validation, and an auditable push may mutate a PR.
+- CI Pi output is a bounded diagnosis/proposal; only exact allowlisted unified patches that declare and receive explicit Check Run approval, pass a fresh head read and configured validation, and record an auditable push may mutate a PR. Repository policy cannot disable this CI mutation gate.
 - Approved feedback and CI repair pushes now re-read the exact remote branch head immediately before pushing, so branch movement after validation fails closed.
 - Review-comment automation outcomes are replied to on the originating review comment before the thread is resolved; issue-comment outcomes are recorded in a bounded PR-level comment because no review thread exists. Deterministic rejection is persisted so the same suggestion is not retried indefinitely, while operational failures leave feedback open.
 - Stack detection produces a deterministic order; declared stack base updates and branch rebases require explicit approval.
@@ -19,8 +19,8 @@
 
 ## Current validation evidence
 
-- `make check` passed after the last implementation edit on 2026-08-10: `cargo fmt --all -- --check`, Clippy with warnings denied, the locked Rust test suite, the 20 BDD scenarios (20 passed, 59 steps passed), and the Pi worker check (16 tests passed). The focused contracts cover bounded Actions logs, check-run annotations, envelope redaction, oversize rejection, protected operator routes, CLI command discovery, review-thread feedback replies, and issue-comment outcome rendering; waiting-approval Skip/Cancel behavior also passed the focused PR-control and PostgreSQL queue contracts.
-- GitHub Actions PR checks for the published branch have passed after updating checkout/setup-node to Node 24-compatible pinned releases; the current hosted run is [31376635512](https://github.com/Titanicar-US/PiTools/actions/runs/31376635512), and no deprecation annotation remains.
+- `make check` passed after the last implementation edit on 2026-08-10: `cargo fmt --all -- --check`, Clippy with warnings denied, the locked Rust test suite, the 21 BDD scenarios (21 passed, 62 steps passed), and the Pi worker check (16 tests passed). The focused contracts cover bounded Actions logs, check-run annotations, envelope redaction, oversize rejection, typed CI approval admission, protected operator routes, CLI command discovery, review-thread feedback replies, and issue-comment outcome rendering; waiting-approval Skip/Cancel behavior also passed the focused PR-control and PostgreSQL queue contracts.
+- GitHub Actions PR checks for the previously published branch passed after updating checkout/setup-node to Node 24-compatible pinned releases; hosted validation for the current approval-hardening change is pending and must be replaced with the exact green run before handoff.
 - The canonical release helper is confirmation-gated, accepts only `vMAJOR.MINOR.PATCH`, targets `Titanicar-US/PiTools` `main`, and its fake-`gh` contract test passed; no release was created during validation.
 - The image workflow now runs its publication job only for a `v` tag ref and rejects non-semantic tag names before package credentials or image pushes are used.
 - Helm render contracts now require an explicit Pi-worker provider HTTPS allowlist, keep provider SDK execution disabled by default, require a separate provider Secret and explicit key mappings when enabled, and reject application/GitHub/control-plane credential boundaries.

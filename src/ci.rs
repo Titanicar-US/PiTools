@@ -164,6 +164,34 @@ pub struct CiRepairPlan {
     pub requires_approval: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CiMutationAdmission {
+    NoMutation,
+    WaitingApproval,
+    Admitted,
+}
+
+/// Enforce the service-level approval boundary for typed CI mutations.
+///
+/// Repository policy may add stricter gates, but it cannot disable this
+/// approval requirement for a provider-produced patch.
+pub fn admit_ci_mutation(
+    patch_count: usize,
+    requires_approval: bool,
+    plan_approved: bool,
+) -> Result<CiMutationAdmission, CiError> {
+    if patch_count == 0 {
+        return Ok(CiMutationAdmission::NoMutation);
+    }
+    if !requires_approval {
+        return Err(CiError::ApprovalRequired);
+    }
+    if !plan_approved {
+        return Ok(CiMutationAdmission::WaitingApproval);
+    }
+    Ok(CiMutationAdmission::Admitted)
+}
+
 /// A single-file unified diff proposed by the isolated Pi worker.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -492,6 +520,8 @@ fn validate_repository_path(path: &str) -> Result<(), CiError> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum CiError {
+    #[error("typed CI mutations require explicit approval")]
+    ApprovalRequired,
     #[error("no validation commands were configured")]
     NoValidationCommands,
     #[error("command has no executable")]
