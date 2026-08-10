@@ -1,14 +1,36 @@
 use chrono::{Duration, Utc};
 use pitools::{
     db::Database,
-    github::events::DeliveryEnvelope,
+    github::{auth::InstallationToken, client::GitHubClient, events::DeliveryEnvelope},
+    pr_controls::{FinalSummary, ItemStatus, PlanItem},
     queue::{JobKind, JobQueue, JobSpec},
     repository::Repositories,
-    workflow::process_check_run_control,
+    workflow::{WorkCoordinator, process_check_run_control},
 };
+use secrecy::SecretString;
+use serde_json::json;
 use sqlx::{AssertSqlSafe, PgPool, postgres::PgPoolOptions};
 use url::Url;
 use uuid::Uuid;
+use wiremock::{
+    Mock, MockServer, ResponseTemplate,
+    matchers::{body_string_contains, method, path},
+};
+
+const WORKFLOW_TOKEN: &str = "workflow-installation-token";
+
+fn workflow_client(server: &MockServer) -> GitHubClient {
+    GitHubClient::new(
+        Url::parse(&format!("{}/", server.uri())).expect("mock URL is valid"),
+        InstallationToken {
+            token: SecretString::from(WORKFLOW_TOKEN),
+            expires_at: "2030-01-01T00:00:00Z".into(),
+            permissions: json!({"checks": "write", "issues": "write"}),
+            repository_selection: Some("selected".into()),
+        },
+    )
+    .expect("GitHub client is valid")
+}
 
 fn job_spec(repository_id: i64, pull_request_number: i32, kind: JobKind) -> JobSpec {
     JobSpec {
@@ -155,6 +177,141 @@ impl PostgresFixture {
 
 fn generated_database_id() -> i64 {
     (Uuid::new_v4().as_u128() & i64::MAX as u128) as i64
+}
+
+#[tokio::test]
+async fn postgres_work_coordinator_persists_start_and_final_notifications() {
+    let Some(fixture) = PostgresFixture::start().await else {
+        return;
+    };
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/repos/acme/widgets/check-runs"))
+        .and(body_string_contains("approve-plan"))
+        .and(body_string_contains("skip-current-item"))
+        .and(body_string_contains("cancel-run"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "id": 81,
+            "html_url": "https://github.com/acme/widgets/check-runs/81"
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/repos/acme/widgets/issues/7/comments"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({"id": 91})))
+        .mount(&server)
+        .await;
+    Mock::given(method("PATCH"))
+        .and(path("/repos/acme/widgets/check-runs/81"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": 81,
+            "html_url": "https://github.com/acme/widgets/check-runs/81"
+        })))
+        .mount(&server)
+        .await;
+
+    let job_id = fixture
+        .queue()
+        .enqueue(fixture.spec(7, JobKind::CiRepair, "workflow-coordinator"))
+        .await
+        .expect("enqueue workflow coordinator job");
+    let coordinator = WorkCoordinator::new(
+        Repositories::new(fixture.database.clone()),
+        workflow_client(&server),
+    );
+    let handle = coordinator
+        .start(
+            job_id,
+            "acme",
+            "widgets",
+            7,
+            "head-sha",
+            vec![
+                PlanItem::new(
+                    "ci-repair",
+                    "Diagnose GitHub Actions failure",
+                    ItemStatus::InProgress,
+                )
+                .expect("work item"),
+            ],
+        )
+        .await
+        .expect("start notification lifecycle");
+    coordinator
+        .finish(
+            &handle,
+            "acme",
+            "widgets",
+            7,
+            FinalSummary::new(
+                "run-81",
+                vec!["Recorded the repair result"],
+                vec!["cargo test passed"],
+                vec!["Human merge remains required"],
+            )
+            .expect("final summary"),
+            true,
+        )
+        .await
+        .expect("finish notification lifecycle");
+
+    let (check_run_id, check_run_url, current_item): (i64, String, Option<String>) =
+        sqlx::query_as("SELECT check_run_id, check_run_url, current_item FROM jobs WHERE id = $1")
+            .bind(job_id)
+            .fetch_one(fixture.database.pool())
+            .await
+            .expect("persisted Check Run handle");
+    assert_eq!(check_run_id, 81);
+    assert_eq!(
+        check_run_url,
+        "https://github.com/acme/widgets/check-runs/81"
+    );
+    assert_eq!(current_item.as_deref(), Some("ci-repair"));
+
+    let comments: Vec<(String, bool, i64)> = sqlx::query_as(
+        "SELECT kind, immutable, github_comment_id FROM comments
+         WHERE job_id = $1 ORDER BY kind",
+    )
+    .bind(job_id)
+    .fetch_all(fixture.database.pool())
+    .await
+    .expect("persisted lifecycle comments");
+    assert_eq!(
+        comments,
+        vec![
+            ("final_summary".into(), true, 91),
+            ("work_plan".into(), false, 91),
+        ]
+    );
+
+    let requests = server
+        .received_requests()
+        .await
+        .expect("GitHub request log is available");
+    assert_eq!(requests.len(), 4);
+    let final_comment = requests
+        .iter()
+        .find(|request| {
+            request.method.as_str() == "POST"
+                && request.url.path() == "/repos/acme/widgets/issues/7/comments"
+                && String::from_utf8_lossy(&request.body)
+                    .contains("pitools:final-summary:v1:run-81")
+        })
+        .expect("final summary comment request");
+    assert!(String::from_utf8_lossy(&final_comment.body).contains("Human merge remains required"));
+
+    let completion = requests
+        .iter()
+        .find(|request| {
+            request.method.as_str() == "PATCH"
+                && request.url.path() == "/repos/acme/widgets/check-runs/81"
+        })
+        .expect("completed Check Run request");
+    let completion_body: serde_json::Value =
+        serde_json::from_slice(&completion.body).expect("completion body is JSON");
+    assert_eq!(completion_body["actions"], json!([]));
+
+    fixture.cleanup().await;
 }
 
 #[tokio::test]
