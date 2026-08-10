@@ -84,7 +84,7 @@ The remaining release prerequisites are external or intentionally fail-closed: G
 
 - [ ] Write the SQL migration for installations, repositories, pull requests, event deliveries, feedback items, checks, policies, readiness snapshots, jobs, controls, comments, and audit entries with unique delivery and GitHub-object keys.
 - [ ] Write repository tests for duplicate delivery, out-of-order close/open events, merged/closed cleanup, and transaction rollback.
-- [ ] Write readiness tests for conflicts, stale branches, failed/pending checks, missing approvals, unresolved configured automation feedback, and a fully ready PR.
+- [x] Write readiness tests for conflicts, stale branches, failed/pending checks, missing approvals, unresolved configured automation feedback, and a fully ready PR.
 - [ ] Implement typed policy parsing for automation actors, required checks, branch freshness, approval requirements, force-push mode, and reconciliation interval.
 - [ ] Implement the migration runner and repository transactions.
 - [ ] Run the repository and readiness tests against a disposable Postgres test database.

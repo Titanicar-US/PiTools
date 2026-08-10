@@ -10,10 +10,16 @@ use pitools::{
     },
     github::manifest::validate_manifest_code,
     github::{client::actions_job_id_from_details_url, events::DeliveryEnvelope},
+    models::{
+        CheckConclusion, CheckSnapshot, CheckStatus, FeedbackSnapshot, ReadinessInput,
+        ReadinessReason, ReadinessSnapshot,
+    },
     pi::PiJobRequest,
+    policy::Policy,
     pr_controls::{
         ControlAction, ControlRequest, ItemStatus, PlanItem, RunState, RunStatus, apply_control,
     },
+    readiness::evaluate,
     webhook::verify_signature,
 };
 use serde_json::json;
@@ -42,6 +48,142 @@ struct World {
     ci_admission_rejected: bool,
     pi_request_rejected: bool,
     metrics_body: Option<String>,
+    readiness_input: Option<ReadinessInput>,
+    readiness_policy: Option<Policy>,
+    readiness_snapshot: Option<ReadinessSnapshot>,
+}
+
+fn ready_readiness_input() -> ReadinessInput {
+    ReadinessInput {
+        mergeable: Some(true),
+        branch_is_current: true,
+        required_checks: vec![CheckSnapshot {
+            name: "check".into(),
+            status: CheckStatus::Completed,
+            conclusion: Some(CheckConclusion::Success),
+            required: true,
+        }],
+        approved: true,
+        unresolved_feedback: Vec::new(),
+        is_draft: false,
+    }
+}
+
+#[given("a ready pull request")]
+fn ready_pull_request(world: &mut World) {
+    world.readiness_input = Some(ready_readiness_input());
+    world.readiness_policy = Some(Policy::default());
+}
+
+#[given("the pull request has a merge conflict and an out-of-date branch")]
+fn conflicting_out_of_date_pull_request(world: &mut World) {
+    let input = world.readiness_input.as_mut().expect("readiness input");
+    input.mergeable = Some(false);
+    input.branch_is_current = false;
+}
+
+#[given("the pull request has a failed required check")]
+fn failed_required_check(world: &mut World) {
+    let input = world.readiness_input.as_mut().expect("readiness input");
+    input.required_checks[0].status = CheckStatus::Completed;
+    input.required_checks[0].conclusion = Some(CheckConclusion::Failure);
+}
+
+#[given("the pull request has a pending required check")]
+fn pending_required_check(world: &mut World) {
+    let input = world.readiness_input.as_mut().expect("readiness input");
+    input.required_checks[0].status = CheckStatus::InProgress;
+    input.required_checks[0].conclusion = None;
+}
+
+#[given("the pull request has no required approval")]
+fn missing_required_approval(world: &mut World) {
+    world
+        .readiness_input
+        .as_mut()
+        .expect("readiness input")
+        .approved = false;
+}
+
+#[given("the pull request has unresolved configured automation feedback")]
+fn unresolved_configured_feedback(world: &mut World) {
+    world
+        .readiness_input
+        .as_mut()
+        .expect("readiness input")
+        .unresolved_feedback
+        .push(FeedbackSnapshot {
+            id: "feedback-1".into(),
+            actor_login: "copilot-pull-request-reviewer[bot]".into(),
+            actor_type: "Bot".into(),
+            body: "please fix this".into(),
+            resolved: false,
+            is_automation: true,
+        });
+    world
+        .readiness_policy
+        .as_mut()
+        .expect("readiness policy")
+        .automation_actors
+        .push("copilot-pull-request-reviewer[bot]".into());
+}
+
+#[when("PiTools evaluates pull request readiness")]
+fn evaluates_pull_request_readiness(world: &mut World) {
+    let input = world.readiness_input.as_ref().expect("readiness input");
+    let policy = world.readiness_policy.as_ref().expect("readiness policy");
+    world.readiness_snapshot = Some(evaluate(input, policy));
+}
+
+fn readiness_has_reason(world: &World, reason: ReadinessReason) {
+    assert!(
+        world
+            .readiness_snapshot
+            .as_ref()
+            .expect("readiness snapshot")
+            .reason_codes
+            .contains(&reason)
+    );
+}
+
+#[then("the readiness reason includes a merge conflict")]
+fn readiness_includes_merge_conflict(world: &mut World) {
+    readiness_has_reason(world, ReadinessReason::MergeConflict);
+}
+
+#[then("the readiness reason includes an out-of-date branch")]
+fn readiness_includes_out_of_date_branch(world: &mut World) {
+    readiness_has_reason(world, ReadinessReason::BranchOutOfDate);
+}
+
+#[then("the readiness reason includes a failed required check")]
+fn readiness_includes_failed_check(world: &mut World) {
+    readiness_has_reason(world, ReadinessReason::RequiredCheckFailed);
+}
+
+#[then("the readiness reason includes a pending required check")]
+fn readiness_includes_pending_check(world: &mut World) {
+    readiness_has_reason(world, ReadinessReason::RequiredCheckPending);
+}
+
+#[then("the readiness reason includes a missing required review")]
+fn readiness_includes_missing_review(world: &mut World) {
+    readiness_has_reason(world, ReadinessReason::RequiredReviewMissing);
+}
+
+#[then("the readiness reason includes unresolved automation feedback")]
+fn readiness_includes_unresolved_feedback(world: &mut World) {
+    readiness_has_reason(world, ReadinessReason::UnresolvedAutomationFeedback);
+}
+
+#[then("the pull request is ready for human merge")]
+fn pull_request_is_ready_for_human_merge(world: &mut World) {
+    let snapshot = world
+        .readiness_snapshot
+        .as_ref()
+        .expect("readiness snapshot");
+    assert!(snapshot.ready);
+    assert!(snapshot.reason_codes.is_empty());
 }
 
 #[given("no PiTools credentials are configured")]
