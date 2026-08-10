@@ -25,6 +25,7 @@ use crate::{
     github::{
         auth::{GitHubAppAuth, InstallationTokenScope},
         client::{GitHubClient, actions_job_id_from_details_url},
+        manifest::default_permissions,
     },
     models::{PullRequestSnapshot, PullRequestState},
     pi::{NatsPiWorker, PiJobRequest, PiJobResult},
@@ -193,14 +194,7 @@ impl WorkerRuntime {
                 repository_id: job.repository_id,
                 number: job.pull_request_number,
             })?;
-        let mut permissions = BTreeMap::new();
-        permissions.insert("actions".into(), "read".into());
-        permissions.insert("checks".into(), "write".into());
-        permissions.insert("contents".into(), "write".into());
-        permissions.insert("issues".into(), "write".into());
-        permissions.insert("metadata".into(), "read".into());
-        permissions.insert("pull_requests".into(), "write".into());
-        permissions.insert("statuses".into(), "read".into());
+        let permissions = default_permissions();
         let installation_token = self
             .github_auth
             .installation_token_with_scope(

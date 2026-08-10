@@ -32,16 +32,25 @@ pub struct HookAttributes {
     pub active: bool,
 }
 
+/// Permissions required by both the public App manifest and scoped worker tokens.
+///
+/// Keeping this contract in one place prevents the App installation flow and
+/// runtime token requests from drifting apart as protected-branch reads evolve.
+pub fn default_permissions() -> BTreeMap<String, String> {
+    BTreeMap::from([
+        ("actions".into(), "read".into()),
+        ("administration".into(), "read".into()),
+        ("checks".into(), "write".into()),
+        ("contents".into(), "write".into()),
+        ("issues".into(), "write".into()),
+        ("metadata".into(), "read".into()),
+        ("pull_requests".into(), "write".into()),
+        ("statuses".into(), "read".into()),
+    ])
+}
+
 impl AppManifest {
     pub fn for_public_project(base_url: &str) -> Self {
-        let mut permissions = BTreeMap::new();
-        permissions.insert("actions".into(), "read".into());
-        permissions.insert("checks".into(), "write".into());
-        permissions.insert("contents".into(), "write".into());
-        permissions.insert("issues".into(), "write".into());
-        permissions.insert("metadata".into(), "read".into());
-        permissions.insert("pull_requests".into(), "write".into());
-        permissions.insert("statuses".into(), "read".into());
         let webhook_url = format!("{base_url}/github/webhook");
         Self {
             name: "PiTools".into(),
@@ -52,7 +61,7 @@ impl AppManifest {
             },
             redirect_url: format!("{base_url}/github/manifest/callback"),
             public: false,
-            default_permissions: permissions,
+            default_permissions: default_permissions(),
             default_events: DEFAULT_EVENTS.iter().map(|event| (*event).into()).collect(),
         }
     }
