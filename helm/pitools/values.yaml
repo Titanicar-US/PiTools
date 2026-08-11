@@ -1,0 +1,150 @@
+replicaCount: 1
+
+image:
+  repository: ""
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  privileged: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+
+service:
+  type: ClusterIP
+  port: 8080
+  annotations: {}
+
+externalServices:
+  postgres:
+    existingSecret: ""
+    urlKey: database-url
+    port: 5432
+  nats:
+    existingSecret: ""
+    urlKey: nats-url
+    port: 4222
+
+applicationSecret:
+  existingSecret: ""
+  keys:
+    githubAppId: github-app-id
+    githubPrivateKey: github-app-private-key.pem
+    githubWebhookSecret: github-webhook-secret
+    adminBearerTokenHash: admin-bearer-token-hash
+
+httpRoute:
+  enabled: false
+  annotations: {}
+  parentRefs: []
+  hostnames: []
+  pathPrefix: /github/webhook
+  manifestCallbackPath: /github/manifest/callback
+
+probes:
+  liveness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    initialDelaySeconds: 2
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 1
+    memory: 512Mi
+
+worker:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 1
+      memory: 512Mi
+
+piWorker:
+  # The runner uses the dependency-free NATS request/reply transport.
+  enabled: true
+  image:
+    repository: ""
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+  networkPolicy:
+    egress:
+      https:
+        enabled: false
+        to: []
+        port: 443
+  provider:
+    # Provider-backed diagnosis is opt-in and must use a separate external Secret.
+    enabled: false
+    existingSecret: ""
+    secretEnv: []
+
+networkPolicy:
+  enabled: true
+  ingress:
+    from: []
+  egress:
+    dns:
+      to: []
+      port: 53
+    postgres:
+      to: []
+    nats:
+      to: []
+    https:
+      enabled: false
+      to: []
+      port: 443
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []

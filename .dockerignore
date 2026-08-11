@@ -1,0 +1,16 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+target
+workers/pi/node_modules
+workers/pi/dist
+node_modules
+coverage
+*.log
+.DS_Store
+docs
+helm
+tests
+

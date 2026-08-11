@@ -1,0 +1,21 @@
+# Copy this file to .pitools.yml in a repository and edit the allowlists.
+# PiTools service invariants still take precedence over this policy.
+automation_actors:
+  - copilot-pull-request-reviewer[bot]
+maintainers:
+  - repository-maintainer
+required_checks:
+  - test
+  - lint
+require_approval: true
+require_current_branch: true
+reconcile_interval_seconds: 300
+allow_bot_force_push: false
+# Only used with allow_bot_force_push: true. Keep this list exact and bot-owned.
+bot_owned_branches: []
+repair_allowed_paths:
+  - src/lib.rs
+  - tests/ci.rs
+stack_parents: {}
+validation_commands:
+  - git_diff_check

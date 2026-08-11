@@ -1,0 +1,116 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pitools.fullname" . }}
+  labels:
+    {{- include "pitools.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - {{ include "pitools.name" . }}
+      - key: app.kubernetes.io/instance
+        operator: In
+        values:
+          - {{ .Release.Name }}
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - core
+          - core-worker
+  policyTypes:
+    - Ingress
+    - Egress
+  {{- if .Values.networkPolicy.ingress.from }}
+  ingress:
+    - from:
+        {{- toYaml .Values.networkPolicy.ingress.from | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
+  {{- else }}
+  ingress: []
+  {{- end }}
+  {{- if or .Values.networkPolicy.egress.dns.to .Values.networkPolicy.egress.postgres.to .Values.networkPolicy.egress.nats.to (and .Values.networkPolicy.egress.https.enabled .Values.networkPolicy.egress.https.to) }}
+  egress:
+    {{- with .Values.networkPolicy.egress.dns.to }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        - protocol: UDP
+          port: {{ $.Values.networkPolicy.egress.dns.port }}
+        - protocol: TCP
+          port: {{ $.Values.networkPolicy.egress.dns.port }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.postgres.to }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: {{ $.Values.externalServices.postgres.port }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.nats.to }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: {{ $.Values.externalServices.nats.port }}
+    {{- end }}
+    {{- if and .Values.networkPolicy.egress.https.enabled .Values.networkPolicy.egress.https.to }}
+    - to:
+        {{- toYaml .Values.networkPolicy.egress.https.to | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.egress.https.port }}
+    {{- end }}
+  {{- else }}
+  egress: []
+  {{- end }}
+{{- end }}
+{{- if and .Values.networkPolicy.enabled .Values.piWorker.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pitools.fullname" . }}-pi-worker
+  labels:
+    {{- include "pitools.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "pitools.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: pi-worker
+  policyTypes:
+    - Egress
+  {{- if or .Values.networkPolicy.egress.dns.to .Values.networkPolicy.egress.nats.to (and .Values.piWorker.networkPolicy.egress.https.enabled .Values.piWorker.networkPolicy.egress.https.to) }}
+  egress:
+    {{- with .Values.networkPolicy.egress.dns.to }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        - protocol: UDP
+          port: {{ $.Values.networkPolicy.egress.dns.port }}
+        - protocol: TCP
+          port: {{ $.Values.networkPolicy.egress.dns.port }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.nats.to }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: {{ $.Values.externalServices.nats.port }}
+    {{- end }}
+    {{- if and .Values.piWorker.networkPolicy.egress.https.enabled .Values.piWorker.networkPolicy.egress.https.to }}
+    - to:
+        {{- toYaml .Values.piWorker.networkPolicy.egress.https.to | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.piWorker.networkPolicy.egress.https.port }}
+    {{- end }}
+  {{- else }}
+  egress: []
+  {{- end }}
+{{- end }}

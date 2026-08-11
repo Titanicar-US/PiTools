@@ -1,0 +1,47 @@
+[package]
+name = "pitools"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "Apache-2.0"
+description = "A deterministic GitHub App control plane for pull request readiness."
+repository = "https://github.com/Titanicar-US/PiTools"
+readme = "README.md"
+
+[dependencies]
+anyhow = "1.0.104"
+argon2 = "0.6.0-rc.8"
+async-nats = "0.50.0"
+axum = "0.8.9"
+chrono = { version = "0.4.45", features = ["clock", "serde"] }
+clap = { version = "4.6.4", features = ["derive", "env"] }
+dotenvy = "0.15.7"
+hmac = "0.13.0"
+hex = "0.4.3"
+jsonwebtoken = "11.0.0"
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls"] }
+secrecy = "0.10.3"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+serde_yml = "0.0.12"
+sha2 = "0.11.0"
+sqlx = { version = "0.9.0", default-features = false, features = ["chrono", "json", "macros", "migrate", "postgres", "runtime-tokio", "tls-rustls-ring", "uuid"] }
+thiserror = "2.0.19"
+tokio = { version = "1.53.1", features = ["io-util", "macros", "net", "process", "rt-multi-thread", "signal", "time"] }
+tower = "0.5.3"
+tower-http = { version = "0.7.0", features = ["limit", "request-id", "trace"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt", "json"] }
+url = "2.5.8"
+uuid = { version = "1.24.0", features = ["serde", "v4", "v7"] }
+
+[dev-dependencies]
+assert_cmd = "2.2.2"
+cucumber = "0.23.0"
+predicates = "3.1.4"
+tempfile = "3.27.0"
+wiremock = "0.6.5"
+
+[[bin]]
+name = "pitools"
+path = "src/main.rs"

@@ -1,0 +1,52 @@
+image:
+  repository: ghcr.io/example/pitools
+  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+applicationSecret:
+  existingSecret: pitools-application
+
+externalServices:
+  postgres:
+    existingSecret: pitools-postgres
+  nats:
+    existingSecret: pitools-nats
+
+piWorker:
+  enabled: true
+  image:
+    repository: ghcr.io/example/pitools-runner
+    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  networkPolicy:
+    egress:
+      https:
+        enabled: true
+        to:
+          - ipBlock:
+              cidr: 192.0.2.12/32
+        port: 443
+
+networkPolicy:
+  ingress:
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: gateway-system
+  egress:
+    dns:
+      to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+    postgres:
+      to:
+        - ipBlock:
+            cidr: 192.0.2.10/32
+    nats:
+      to:
+        - ipBlock:
+            cidr: 192.0.2.11/32
+    https:
+      enabled: true
+      to:
+        - ipBlock:
+            cidr: 192.0.2.12/32

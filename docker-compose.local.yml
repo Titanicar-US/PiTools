@@ -1,0 +1,139 @@
+name: pitools-local
+
+services:
+  postgres:
+    image: docker.io/library/postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    environment:
+      POSTGRES_DB: pitools
+      POSTGRES_USER: pitools
+      POSTGRES_PASSWORD: ${PITOOLS_POSTGRES_PASSWORD:?set PITOOLS_POSTGRES_PASSWORD for local Compose}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pitools -d pitools"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "127.0.0.1:${PITOOLS_POSTGRES_PORT:-5432}:5432"
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  nats:
+    image: docker.io/library/nats:2.11.8-alpine@sha256:71092f77d707a4a81b12aca5096d6b2d2e07ad16aa57c84066940a17af74f61a
+    command: ["--http_port", "8222"]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "127.0.0.1:${PITOOLS_NATS_PORT:-4222}:4222"
+    restart: unless-stopped
+
+  pitools:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pitools:local
+    init: true
+    user: "10001:10001"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    environment:
+      DATABASE_URL: postgres://pitools:${PITOOLS_POSTGRES_PASSWORD}@postgres:5432/pitools
+      NATS_URL: nats://nats:4222
+      GITHUB_APP_ID: ${PITOOLS_GITHUB_APP_ID:?set a non-production GitHub App id}
+      GITHUB_PRIVATE_KEY_PATH: /run/secrets/github-app-private-key.pem
+      GITHUB_WEBHOOK_SECRET: ${PITOOLS_GITHUB_WEBHOOK_SECRET:?set a non-production webhook secret}
+      ADMIN_BEARER_TOKEN_HASH: ${PITOOLS_ADMIN_BEARER_TOKEN_HASH:?set a non-production admin token hash}
+      PITOOLS_BIND_ADDRESS: 0.0.0.0:8080
+      RUST_LOG: ${PITOOLS_RUST_LOG:-info}
+    secrets:
+      - source: github_app_private_key
+        target: github-app-private-key.pem
+        uid: "10001"
+        gid: "10001"
+        mode: 0400
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    ports:
+      - "127.0.0.1:${PITOOLS_HTTP_PORT:-8080}:8080"
+    restart: unless-stopped
+
+  pitools-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pitools:local
+    command: ["/usr/local/bin/pitools", "worker"]
+    init: true
+    user: "10001:10001"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    environment:
+      DATABASE_URL: postgres://pitools:${PITOOLS_POSTGRES_PASSWORD}@postgres:5432/pitools
+      NATS_URL: nats://nats:4222
+      GITHUB_APP_ID: ${PITOOLS_GITHUB_APP_ID:?set a non-production GitHub App id}
+      GITHUB_PRIVATE_KEY_PATH: /run/secrets/github-app-private-key.pem
+      GITHUB_WEBHOOK_SECRET: ${PITOOLS_GITHUB_WEBHOOK_SECRET:?set a non-production webhook secret}
+      ADMIN_BEARER_TOKEN_HASH: ${PITOOLS_ADMIN_BEARER_TOKEN_HASH:?set a non-production admin token hash}
+      RUST_LOG: ${PITOOLS_RUST_LOG:-info}
+    secrets:
+      - source: github_app_private_key
+        target: github-app-private-key.pem
+        uid: "10001"
+        gid: "10001"
+        mode: 0400
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+
+  pi-worker:
+    profiles: ["worker"]
+    build:
+      context: .
+      dockerfile: runner/Dockerfile
+    image: pitools-runner:local
+    init: true
+    stdin_open: true
+    user: "10001:10001"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+    environment:
+      NATS_URL: nats://nats:4222
+      PITOOLS_PI_TRANSPORT: nats
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+
+secrets:
+  github_app_private_key:
+    file: ${PITOOLS_GITHUB_PRIVATE_KEY_FILE:?set the path to a non-production GitHub App private key}
+
+volumes:
+  postgres-data:

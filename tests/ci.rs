@@ -1,0 +1,201 @@
+use std::{path::Path, time::Duration};
+
+use pitools::{
+    ci::{
+        CiFailure, CiFailureInput, CiFailureKind, CiMutationAdmission, CiPatch, CiRepairPlan,
+        WorktreePlan, admit_ci_mutation, is_repairable_check_conclusion, prepare_ci_evidence,
+        redact_ci_text, validate_patch_set, validation_sandbox_argv,
+    },
+    policy::ValidationCommand,
+};
+
+#[test]
+fn repairable_check_conclusions_cover_non_success_actions_states() {
+    for conclusion in [
+        "action_required",
+        "cancelled",
+        "failure",
+        "startup_failure",
+        "stale",
+        "timed_out",
+    ] {
+        assert!(is_repairable_check_conclusion(conclusion), "{conclusion}");
+    }
+    for conclusion in ["neutral", "success", "skipped"] {
+        assert!(!is_repairable_check_conclusion(conclusion), "{conclusion}");
+    }
+}
+
+#[test]
+fn validation_sandbox_hides_control_plane_files_and_network() {
+    let argv = validation_sandbox_argv(
+        Path::new("/var/lib/pitools/validation"),
+        &["make".into(), "check".into()],
+    )
+    .expect("sandbox command");
+    let rendered = argv.join(" ");
+    assert!(rendered.contains("--unshare-net"));
+    assert!(rendered.contains("--tmpfs /"));
+    assert!(rendered.contains("--bind /var/lib/pitools/validation /workspace"));
+    assert!(!rendered.contains("/run/secrets"));
+    assert!(!rendered.contains("GITHUB_PRIVATE_KEY_PATH"));
+    assert_eq!(argv.last().map(String::as_str), Some("check"));
+}
+
+#[test]
+fn ci_failure_classification_and_typed_plan_are_deterministic() {
+    let failure = CiFailure::new(CiFailureInput {
+        repository_id: 42,
+        pull_request_number: 7,
+        head_sha: "abc123".into(),
+        workflow_name: "pull-request-tests".into(),
+        job_name: "cargo test".into(),
+        check_name: "tests".into(),
+        details_url: Some("https://github.com/acme/repo/actions/runs/1".into()),
+        log_excerpt: "test failed".into(),
+    })
+    .expect("valid CI failure");
+    assert_eq!(failure.kind, CiFailureKind::Test);
+    let worktree = WorktreePlan::new("/runner", "feature/one", "abc123").unwrap();
+    let plan = CiRepairPlan::new(failure, worktree, vec![ValidationCommand::CargoTest])
+        .expect("typed plan");
+    assert!(plan.requires_approval);
+    assert_eq!(
+        plan.validation_commands[0].argv(),
+        &["cargo", "test", "--locked"]
+    );
+}
+
+#[test]
+fn typed_ci_mutation_requires_explicit_approval_even_when_policy_allows_automation() {
+    assert_eq!(
+        admit_ci_mutation(1, true, false).expect("unapproved patch is a waiting state"),
+        CiMutationAdmission::WaitingApproval
+    );
+    assert_eq!(
+        admit_ci_mutation(1, true, true).expect("approved patch is admitted"),
+        CiMutationAdmission::Admitted
+    );
+    assert!(matches!(
+        admit_ci_mutation(1, false, true),
+        Err(pitools::ci::CiError::ApprovalRequired)
+    ));
+}
+
+#[test]
+fn worktree_argv_is_detached_and_cannot_interpret_shell_text() {
+    let worktree = WorktreePlan::new("/runner", "feature/one", "abc123").unwrap();
+    let argv = worktree
+        .git_worktree_add_argv(Path::new("job-1"))
+        .expect("relative destination");
+    assert_eq!(argv[0..4], ["git", "worktree", "add", "--detach"]);
+    assert!(!argv.iter().any(|part| part == "sh" || part.contains(';')));
+    assert!(
+        worktree
+            .git_worktree_add_argv(Path::new("/tmp/escape"))
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn command_runner_rejects_empty_command_lists_before_execution() {
+    let error = pitools::ci::run_validation_commands(Path::new("."), &[], Duration::from_secs(1))
+        .await
+        .expect_err("empty command list must fail closed");
+    assert!(error.to_string().contains("no validation commands"));
+}
+
+#[tokio::test]
+async fn command_runner_can_feed_patch_bytes_without_a_shell() {
+    let result = pitools::ci::run_bounded_argv_with_input(
+        Path::new("."),
+        &["cat".into()],
+        Duration::from_secs(1),
+        &[],
+        b"patch-input",
+    )
+    .await
+    .expect("bounded stdin command");
+    assert!(result.success);
+    assert_eq!(result.stdout, "patch-input");
+}
+
+#[test]
+fn ci_patch_set_accepts_only_single_allowlisted_unified_files() {
+    let patch = CiPatch {
+        path: "src/lib.rs".into(),
+        unified_diff: "--- a/src/lib.rs\n+++ b/src/lib.rs\n@@ -1,1 +1,1 @@\n-old\n+new\n".into(),
+    };
+    validate_patch_set(std::slice::from_ref(&patch), &["src/lib.rs".into()])
+        .expect("allowlisted patch is valid");
+
+    let wrong_file = CiPatch {
+        path: "src/lib.rs".into(),
+        unified_diff: patch.unified_diff.replace("src/lib.rs", "src/other.rs"),
+    };
+    assert!(validate_patch_set(&[wrong_file], &["src/lib.rs".into()]).is_err());
+}
+
+#[test]
+fn ci_patch_set_rejects_traversal_and_multi_file_patches() {
+    let traversal = CiPatch {
+        path: "../secret".into(),
+        unified_diff: String::new(),
+    };
+    assert!(validate_patch_set(&[traversal], &["../secret".into()]).is_err());
+
+    let multi_file = CiPatch {
+        path: "src/lib.rs".into(),
+        unified_diff: "--- a/src/lib.rs\n+++ b/src/lib.rs\n@@ -1 +1 @@\n-a\n+b\n--- a/src/other.rs\n+++ b/src/other.rs\n@@ -1 +1 @@\n-c\n+d\n".into(),
+    };
+    assert!(validate_patch_set(&[multi_file], &["src/lib.rs".into()]).is_err());
+}
+
+#[test]
+fn redacts_common_secret_markers_from_ci_evidence() {
+    let redacted = redact_ci_text(
+        "Authorization: Bearer ghp_example\nTOKEN=github_pat_example\nerror: failed",
+    );
+
+    assert!(!redacted.contains("ghp_example"));
+    assert!(!redacted.contains("github_pat_example"));
+    assert!(redacted.contains("[REDACTED]"));
+    assert!(redacted.contains("error: failed"));
+}
+
+#[test]
+fn redacts_extended_provider_and_key_material_from_ci_evidence() {
+    let redacted = redact_ci_text(
+        "ghs_example gho_example AKIA1234567890ABCDEF npm_abcdefghijklmnop \
+         eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature \
+         -----BEGIN PRIVATE KEY-----\nprivate-bytes\n-----END PRIVATE KEY-----",
+    );
+
+    for secret in [
+        "ghs_example",
+        "gho_example",
+        "AKIA1234567890ABCDEF",
+        "npm_abcdefghijklmnop",
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature",
+        "private-bytes",
+    ] {
+        assert!(!redacted.contains(secret), "secret leaked: {secret}");
+    }
+    assert!(redacted.contains("[REDACTED]"));
+}
+
+#[test]
+fn ci_evidence_preserves_actions_logs_and_annotations_with_redaction() {
+    let evidence = prepare_ci_evidence(
+        &serde_json::json!({"checks": [{"external_id": "81"}]}),
+        &serde_json::json!([{
+            "actions_log": "error: Authorization: Bearer ghp_example",
+            "annotations": [{"path": "src/lib.rs", "message": "assertion failed"}]
+        }]),
+    )
+    .expect("CI evidence serializes");
+
+    assert!(evidence.contains("assertion failed"));
+    assert!(evidence.contains("src/lib.rs"));
+    assert!(!evidence.contains("ghp_example"));
+}

@@ -1,0 +1,76 @@
+{{- if .Values.piWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pitools.fullname" . }}-pi-worker
+  labels:
+    {{- include "pitools.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pi-worker
+spec:
+  replicas: {{ .Values.piWorker.replicas }}
+  selector:
+    matchLabels:
+      {{- include "pitools.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: pi-worker
+  template:
+    metadata:
+      labels:
+        {{- include "pitools.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: pi-worker
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: pi-worker
+          image: {{ include "pitools.piWorkerImage" . | quote }}
+          imagePullPolicy: {{ .Values.piWorker.image.pullPolicy }}
+          command: ["/usr/bin/tini", "--", "node", "/opt/pitools/pi/dist/main.js"]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "externalServices.nats.existingSecret is required" .Values.externalServices.nats.existingSecret }}
+                  key: {{ required "externalServices.nats.urlKey is required" .Values.externalServices.nats.urlKey }}
+            - name: PITOOLS_PI_TRANSPORT
+              value: nats
+            - name: TMPDIR
+              value: /tmp
+            {{- if .Values.piWorker.provider.enabled }}
+            {{- $providerSecret := required "piWorker.provider.existingSecret is required when provider SDK is enabled" .Values.piWorker.provider.existingSecret }}
+            {{- if eq $providerSecret .Values.applicationSecret.existingSecret }}
+            {{- fail "piWorker.provider.existingSecret must be separate from applicationSecret.existingSecret" }}
+            {{- end }}
+            {{- if not .Values.piWorker.provider.secretEnv }}
+            {{- fail "piWorker.provider.secretEnv must contain at least one provider credential mapping when SDK is enabled" }}
+            {{- end }}
+            - name: PITOOLS_PI_ENABLE_SDK
+              value: "1"
+            {{- range .Values.piWorker.provider.secretEnv }}
+            {{- $envName := required "piWorker.provider.secretEnv[].name is required" .name }}
+            {{- if or (hasPrefix "GITHUB_" $envName) (hasPrefix "PITOOLS_" $envName) (eq $envName "DATABASE_URL") (eq $envName "NATS_URL") }}
+            {{- fail (printf "provider secret environment name %s crosses the Pi worker boundary" $envName) }}
+            {{- end }}
+            - name: {{ $envName | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $providerSecret | quote }}
+                  key: {{ required "piWorker.provider.secretEnv[].key is required" .key | quote }}
+            {{- end }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.piWorker.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+{{- end }}
