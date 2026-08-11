@@ -76,8 +76,8 @@ impl Default for Policy {
 
 impl Policy {
     pub fn from_yaml(source: &str) -> Result<Self, PolicyError> {
-        let policy: Self =
-            serde_yml::from_str(source).map_err(|error| PolicyError::Invalid(error.to_string()))?;
+        let policy: Self = serde_yaml_ng::from_str(source)
+            .map_err(|error| PolicyError::Invalid(error.to_string()))?;
         policy.validate()?;
         Ok(policy)
     }
