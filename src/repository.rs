@@ -683,7 +683,7 @@ impl Repositories {
         repository_id: i64,
         policy: &Policy,
     ) -> Result<(), RepositoryError> {
-        let yaml = serde_yml::to_string(policy)
+        let yaml = serde_yaml_ng::to_string(policy)
             .map_err(|error| RepositoryError::PolicySerialization(error.to_string()))?;
         sqlx::query(
             "UPDATE repositories SET policy_yaml = $1, policy_revision = $2, updated_at = NOW()
