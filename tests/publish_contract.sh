@@ -54,6 +54,66 @@ if ! grep -Fq -- 'FROM --platform=$BUILDPLATFORM' "${dockerfile}" ||
   echo "multi-architecture core images must cross-compile Rust outside target emulation" >&2
   exit 1
 fi
+if ! grep -Eq -- 'linux-libc-dev-arm64-cross;[[:space:]]*\\"${temporary_root}/bin"
+mkdir -p "${fake_bin}"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'printf "%s\\n" "$@" > "${PITOOLS_TEST_ARGS_FILE}"' \
+  >"${fake_bin}/gh"
+chmod 755 "${fake_bin}/gh"
+
+if PITOOLS_RELEASE_TAG=v0.1.0 PITOOLS_PUBLISH_CONFIRM=no "${publish_script}" >/dev/null 2>&1; then
+  echo "publish must require explicit confirmation" >&2
+  exit 1
+fi
+
+if PITOOLS_RELEASE_TAG=release-candidate PITOOLS_PUBLISH_CONFIRM=yes "${publish_script}" >/dev/null 2>&1; then
+  echo "publish must require a stable semantic-version tag" >&2
+  exit 1
+fi
+
+if PITOOLS_RELEASE_TAG=v0.1.0 PITOOLS_PUBLISH_CONFIRM=yes \
+  PITOOLS_REPOSITORY=someone/else "${publish_script}" >/dev/null 2>&1; then
+  echo "publish must refuse a non-canonical repository" >&2
+  exit 1
+fi
+
+arguments_file="${temporary_root}/arguments"
+PITOOLS_RELEASE_TAG=v0.1.0 \
+PITOOLS_PUBLISH_CONFIRM=yes \
+PITOOLS_REPOSITORY=Titanicar-US/PiTools \
+PITOOLS_TEST_ARGS_FILE="${arguments_file}" \
+PATH="${fake_bin}:${PATH}" \
+  "${publish_script}"
+
+mapfile -t actual_arguments <"${arguments_file}"
+expected_arguments=(
+  release
+  create
+  v0.1.0
+  --repo
+  Titanicar-US/PiTools
+  --target
+  main
+  --generate-notes
+)
+if [[ "${#actual_arguments[@]}" -ne "${#expected_arguments[@]}" ]]; then
+  echo "publish arguments changed unexpectedly" >&2
+  exit 1
+fi
+for index in "${!expected_arguments[@]}"; do
+  if [[ "${actual_arguments[${index}]}" != "${expected_arguments[${index}]}" ]]; then
+    echo "publish argument ${index} changed unexpectedly" >&2
+    exit 1
+  fi
+done
+
+echo "publish contract passed"
+ "${dockerfile}"; then
+  echo "arm64 package installation must continue the Dockerfile shell command" >&2
+  exit 1
+fi
+
 fake_bin="${temporary_root}/bin"
 mkdir -p "${fake_bin}"
 printf '%s\n' \

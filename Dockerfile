@@ -18,7 +18,7 @@ RUN set -eux; \
         apt-get install --yes --no-install-recommends \
           gcc-aarch64-linux-gnu \
           libc6-dev-arm64-cross \
-          linux-libc-dev-arm64-cross;
+          linux-libc-dev-arm64-cross; \
         rm -rf /var/lib/apt/lists/*; \
         rustup target add aarch64-unknown-linux-gnu; \
         CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
