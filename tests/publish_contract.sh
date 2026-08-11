@@ -5,6 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 publish_script="${repo_root}/scripts/publish-release.sh"
 image_workflow="${repo_root}/.github/workflows/build-image.yml"
 makefile="${repo_root}/Makefile"
+dockerfile="${repo_root}/Dockerfile"
 temporary_root="$(mktemp -d)"
 trap 'rm -rf "${temporary_root}"' EXIT
 
@@ -44,6 +45,13 @@ if ! grep -Fq -- '          [[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]'
   exit 1
 fi
 
+if ! grep -Fq -- 'FROM --platform=$BUILDPLATFORM' "${dockerfile}" ||
+  ! grep -Fq -- 'aarch64-unknown-linux-gnu' "${dockerfile}" ||
+  ! grep -Fq -- 'CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER' "${dockerfile}" ||
+  ! grep -Fq -- 'COPY --from=rust-builder /out/pitools' "${dockerfile}"; then
+  echo "multi-architecture core images must cross-compile Rust outside target emulation" >&2
+  exit 1
+fi
 fake_bin="${temporary_root}/bin"
 mkdir -p "${fake_bin}"
 printf '%s\n' \
