@@ -47,6 +47,8 @@ fi
 
 if ! grep -Fq -- 'FROM --platform=$BUILDPLATFORM' "${dockerfile}" ||
   ! grep -Fq -- 'aarch64-unknown-linux-gnu' "${dockerfile}" ||
+  ! grep -Fq -- 'libc6-dev-arm64-cross' \
+  ! grep -Fq -- 'linux-libc-dev-arm64-cross' \
   ! grep -Fq -- 'CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER' "${dockerfile}" ||
   ! grep -Fq -- 'COPY --from=rust-builder /out/pitools' "${dockerfile}"; then
   echo "multi-architecture core images must cross-compile Rust outside target emulation" >&2
