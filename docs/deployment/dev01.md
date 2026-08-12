@@ -136,7 +136,7 @@ Use namespace/pod selectors instead of CIDRs when PostgreSQL or NATS is in-clust
 
 Run the protected `build-image` workflow from an approved `v*` tag. Its `publish-image` matrix publishes multi-architecture `pitools` and `pitools-runner` images to GHCR and records each immutable manifest digest in the corresponding GitHub Actions job summary. Copy those exact `ghcr.io/<owner>/<image>@sha256:<digest>` references into the Flux values change; do not use a mutable tag in dev01. The `validate-image` jobs build with `push: false` and are not image-publication evidence.
 
-From a checkout of the merged `main` branch, after PR #6 has merged and post-merge `main` checks are green, the repository release helper can create the replacement release with `make publish PITOOLS_RELEASE_TAG=v0.1.2 PITOOLS_PUBLISH_CONFIRM=yes`. It refuses non-semver tags, missing confirmation, and non-canonical repositories. Never promote the partial v0.1.1 publication; do not run the release helper until the human merge and replacement-release authorization are complete.
+From a checkout of the merged `main` branch, after the post-merge `main` checks are green, release [v0.1.2](https://github.com/Titanicar-US/PiTools/releases/tag/v0.1.2) is the current deployable release. Its immutable image references are `ghcr.io/titanicar-us/pitools@sha256:50c8ae460d0f873f35138dbc7a04d00f9bf8465f434aebd7169410997a397c3d` and `ghcr.io/titanicar-us/pitools-runner@sha256:35d01c8332d0ea62b0df5dd67d6c782a09b7c4b1dbe3c775b78fa8391e391fe4`. Never promote the partial v0.1.1 publication; use the exact digests above in the Flux values change.
 
 ## Database migration gate
 
