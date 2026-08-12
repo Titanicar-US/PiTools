@@ -17,6 +17,19 @@ Before opening an infrastructure change, record:
 
 Do not continue if any owner or source is unknown. Do not copy secret values into Git, Helm values, command history, tickets, or this runbook.
 
+## Observed dev01 platform facts
+
+Read-only inspection of the current dev01 cluster and Flux objects on 2026-08-12 confirms the following non-secret routing facts:
+
+- Flux tracks `https://github.com/Titanicar-US/code_pipeline.git` on `main`.
+- The dev01 root Kustomization path is `./platform/targets/k8s-flux/clusters/dev01`.
+- The existing application namespace is `codex-specops`.
+- The existing public Gateway is `codex-specops-public` in namespace `codex-specops`, with the `hooks-https` listener for `hooks.e164sip.com`.
+- The namespace currently provides `postgres:5432` and `nats:4222` Services.
+- No PiTools Kubernetes resources are currently deployed.
+
+These are discovery results, not deployment authorization. The dev01 platform owner must still confirm the namespace, Gateway/hostname/TLS ownership, service and secret references, egress policy, and authenticated UAT scope before an infrastructure change is opened. Do not infer owner approval from the existence of these resources.
+
 ## Secret contract
 
 Provision three externally managed Kubernetes Secrets through the infrastructure repository's established SOPS, External Secrets, or equivalent workflow:
