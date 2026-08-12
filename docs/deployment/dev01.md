@@ -23,6 +23,7 @@ Read-only inspection of the current dev01 cluster and Flux objects on 2026-08-12
 
 - Flux tracks `https://github.com/Titanicar-US/code_pipeline.git` on `main`.
 - The dev01 root Kustomization path is `./platform/targets/k8s-flux/clusters/dev01`.
+- The repository's application aggregate is `platform/targets/k8s-flux/apps/kustomization.yaml`; read-only inspection on 2026-08-12 found no PiTools entry or PiTools overlay. The Flux owner must choose and wire the PiTools app path into the appropriate dev01 aggregate before rollout.
 - The existing application namespace is `codex-specops`.
 - The existing public Gateway is `codex-specops-public` in namespace `codex-specops`, with the `hooks-https` listener for `hooks.e164sip.com`.
 - The namespace currently provides `postgres:5432` and `nats:4222` Services.
