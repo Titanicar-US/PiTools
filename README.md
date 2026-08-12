@@ -44,6 +44,8 @@ The generated manifest requests `administration:read`, `metadata:read`, `pull_re
 
 The operator CLI reads the same durable state used by the server: `pitools watchlist [--json]`, `pitools events [--limit 50] [--json]`, and `pitools audit [--limit 50] [--json]`. Use `pitools reconcile --repository-id <id> --pull-request-number <number>` to enqueue a refresh and `pitools cancel <job-id>` to request cancellation. Event output contains delivery metadata and hashes, not raw webhook payloads; list limits are capped at 100.
 
+Raw webhook bodies are retained for at most seven days for bounded troubleshooting and are purged hourly by the durable worker; event history retains only delivery metadata and payload hashes.
+
 ## Repository policy
 
 Repositories may commit a `.pitools.yml` policy. The policy controls configured automation actors, readiness requirements, validation commands, reconciliation interval, explicit stack parents, and opt-in branch rewrite rules. Start from [the example policy](docs/policy.example.yml); service safety invariants always win.

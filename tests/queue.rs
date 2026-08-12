@@ -5,6 +5,7 @@ use pitools::{
     pr_controls::{FinalSummary, ItemStatus, PlanItem, bind_approval_details},
     queue::{JobKind, JobQueue, JobSpec},
     repository::Repositories,
+    worker::purge_expired_raw_payloads_once,
     workflow::{WorkCoordinator, process_check_run_control},
 };
 use secrecy::SecretString;
@@ -338,6 +339,50 @@ async fn postgres_open_watchlist_query_returns_active_pull_requests() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].repository_id, fixture.repository_id);
     assert_eq!(rows[0].number, 7);
+
+    fixture.cleanup().await;
+}
+
+#[tokio::test]
+async fn worker_maintenance_purges_expired_raw_webhook_payloads() {
+    let Some(fixture) = PostgresFixture::start().await else {
+        return;
+    };
+    let payload = serde_json::json!({"action": "opened", "secret_like": "test-marker"});
+    let envelope = DeliveryEnvelope::from_payload(
+        "expired-raw-payload".into(),
+        "pull_request".into(),
+        payload.clone(),
+        serde_json::to_vec(&payload).expect("serialize expiry fixture"),
+    );
+    let repositories = Repositories::new(fixture.database.clone());
+    repositories
+        .record_delivery(&envelope)
+        .await
+        .expect("record expiry fixture");
+    sqlx::query(
+        "UPDATE event_deliveries
+         SET raw_payload_expires_at = NOW() - INTERVAL '1 second'
+         WHERE delivery_id = $1",
+    )
+    .bind(&envelope.delivery_id)
+    .execute(fixture.database.pool())
+    .await
+    .expect("expire raw payload fixture");
+
+    assert_eq!(
+        purge_expired_raw_payloads_once(&repositories)
+            .await
+            .expect("purge expired raw payloads"),
+        1
+    );
+    let raw_payload: Option<Vec<u8>> =
+        sqlx::query_scalar("SELECT raw_payload FROM event_deliveries WHERE delivery_id = $1")
+            .bind(&envelope.delivery_id)
+            .fetch_one(fixture.database.pool())
+            .await
+            .expect("read purged raw payload");
+    assert!(raw_payload.is_none());
 
     fixture.cleanup().await;
 }

@@ -44,6 +44,14 @@ use crate::{
 };
 
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
+const RAW_PAYLOAD_PURGE_INTERVAL: Duration = Duration::from_secs(60 * 60);
+
+/// Run the bounded webhook-body retention cleanup used by the worker.
+pub async fn purge_expired_raw_payloads_once(
+    repositories: &Repositories,
+) -> Result<u64, crate::repository::RepositoryError> {
+    repositories.purge_expired_raw_payloads().await
+}
 
 struct FeedbackRepairContext<'a> {
     repository: &'a RepositoryContext,
@@ -101,6 +109,23 @@ impl WorkerRuntime {
     pub async fn run(self) -> Result<()> {
         let worker_id = format!("worker-{}", Uuid::now_v7());
         tracing::info!(worker_id = %worker_id, "worker started; polling durable job queue");
+        let maintenance_repositories = self.repositories.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(RAW_PAYLOAD_PURGE_INTERVAL);
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                interval.tick().await;
+                match purge_expired_raw_payloads_once(&maintenance_repositories).await {
+                    Ok(purged) if purged > 0 => {
+                        tracing::info!(purged, "purged expired raw webhook payloads");
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        tracing::error!(error = %error, "raw webhook payload retention cleanup failed");
+                    }
+                }
+            }
+        });
         loop {
             if let Some(job) = self.queue.lease_next(&worker_id).await? {
                 self.run_job(&worker_id, job).await;

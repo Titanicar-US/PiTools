@@ -13,6 +13,7 @@
 - CI Pi output is a bounded diagnosis/proposal; only exact allowlisted unified patches that declare and receive explicit Check Run approval, pass credential-free bubblewrap validation from a `.git`-free snapshot, pass exact staged-path and fresh-head reads, and record an auditable push with `PiTools-Job`, `PiTools-Repair`, and `PiTools-Head` trailers may mutate a PR. Repository policy cannot disable this CI mutation gate.
 - Approved feedback and CI repair pushes now re-read the exact remote branch head immediately before pushing, so branch movement after validation fails closed.
 - Review-comment automation outcomes are replied to on the originating review comment before the thread is resolved; issue-comment outcomes are recorded in a bounded PR-level comment because no review thread exists. Deterministic rejection is persisted so the same suggestion is not retried indefinitely, while operational failures leave feedback open.
+- Raw webhook bodies are retained for at most seven days and the durable worker now runs an hourly purge; operator event history exposes delivery metadata and payload hashes rather than raw bodies.
 - Stack detection produces a deterministic order; declared stack base updates and branch rebases require explicit approval.
 - Force-push is prohibited by default; a history rewrite is admitted only for an exact `bot_owned_branches` entry when `allow_bot_force_push` is true, and uses `--force-with-lease` against the fresh head.
 - Fork-head repairs fail closed until a separately scoped head-repository push contract is added.
