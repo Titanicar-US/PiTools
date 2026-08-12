@@ -13,6 +13,27 @@ export interface PiRuntimeAdapter {
   execute(request: PiJobRequest): Promise<unknown>;
 }
 
+type PiSdkSessionOptions = {
+  cwd: string;
+  noTools: "all";
+  tools: string[];
+  agentDir?: string;
+};
+
+type PiSdkSession = {
+  messages: readonly unknown[];
+  prompt(message: string): Promise<unknown>;
+  waitForIdle(): Promise<void>;
+  dispose(): void;
+};
+
+type PiSdkSessionFactory = (options: PiSdkSessionOptions) => Promise<{ session: PiSdkSession }>;
+
+const defaultPiSdkSessionFactory: PiSdkSessionFactory = async (options) => {
+  const result = await createAgentSession(options);
+  return { session: result.session };
+};
+
 export class DiagnosisOnlyPiRuntime implements PiRuntimeAdapter {
   async execute(request: PiJobRequest): Promise<unknown> {
     return {
@@ -36,14 +57,18 @@ export class DiagnosisOnlyPiRuntime implements PiRuntimeAdapter {
  * returns a bounded diagnosis/proposal for explicit approval.
  */
 export class PiSdkRuntime implements PiRuntimeAdapter {
+  constructor(private readonly createSession: PiSdkSessionFactory = defaultPiSdkSessionFactory) {}
+
   async execute(request: PiJobRequest): Promise<unknown> {
     const agentDir = process.env.PITOOLS_PI_AGENT_DIR;
-    const { session } = await createAgentSession({
+    const sessionOptions: PiSdkSessionOptions = {
       cwd: process.cwd(),
       noTools: "all",
       tools: [],
-      ...(agentDir === undefined ? {} : { agentDir }),
-    });
+    };
+    if (agentDir !== undefined) sessionOptions.agentDir = agentDir;
+
+    const { session } = await this.createSession(sessionOptions);
     try {
       await session.prompt(
         [

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { PROTOCOL_VERSION } from "../src/protocol.js";
 import {
   DiagnosisOnlyPiRuntime,
+  PiSdkRuntime,
   executePiJob,
   type PiRuntimeAdapter,
 } from "../src/pi-runtime.js";
@@ -67,4 +68,49 @@ test("diagnosis-only runtime is deterministic and proposes no mutation", async (
   assert.deepEqual(first, second);
   assert.deepEqual(first.proposedFiles, []);
   assert.equal(first.requiresApproval, true);
+});
+
+test("provider runtime is toolless, redacts its proposal, and always requires approval", async () => {
+  let prompt = "";
+  let disposed = false;
+  let options: Record<string, unknown> | undefined;
+  const runtime = new PiSdkRuntime(async (receivedOptions) => {
+    options = receivedOptions as Record<string, unknown>;
+    return {
+      session: {
+        messages: [
+          {
+            role: "assistant",
+            content: JSON.stringify({
+              diagnosis: "provider found OPENAI_API_KEY=sk-test-secret",
+              confidence: 0.75,
+              proposedFiles: ["src/main.ts"],
+              proposedPatches: [{ path: "src/main.ts", unifiedDiff: "@@ -1 +1 @@\n-old\n+new\n" }],
+              validationCommands: ["npm test"],
+              risks: ["review required"],
+              requiresApproval: false,
+            }),
+          },
+        ],
+        prompt: async (message: string) => {
+          prompt = message;
+        },
+        waitForIdle: async () => {},
+        dispose: () => {
+          disposed = true;
+        },
+      },
+    };
+  });
+
+  const result = await executePiJob(request, runtime);
+
+  assert.equal(options?.noTools, "all");
+  assert.deepEqual(options?.tools, []);
+  assert.match(prompt, /Allowed paths: src\/main\.ts/);
+  assert.match(prompt, /Failure evidence: npm test failed/);
+  assert.doesNotMatch(prompt, /sk-test-secret/);
+  assert.match(result.diagnosis, /\[REDACTED\]/);
+  assert.equal(result.requiresApproval, true);
+  assert.equal(disposed, true);
 });
