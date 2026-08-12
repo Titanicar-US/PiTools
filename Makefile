@@ -15,6 +15,7 @@ check:
 	npm --prefix workers/pi run check
 	helm/pitools/ci/verify-render.sh
 	bash -n scripts/accept-local-compose.sh
+	bash tests/acceptance_script.sh
 	bash tests/publish_contract.sh
 
 acceptance:

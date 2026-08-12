@@ -9,10 +9,47 @@ acceptance_key="${acceptance_root}/github-app-private-key.pem"
 http_port="${PITOOLS_ACCEPTANCE_HTTP_PORT:-18080}"
 postgres_port="${PITOOLS_ACCEPTANCE_POSTGRES_PORT:-15432}"
 nats_port="${PITOOLS_ACCEPTANCE_NATS_PORT:-14222}"
+docker_timeout_seconds="${PITOOLS_DOCKER_TIMEOUT_SECONDS:-30}"
+
+docker_command_index=0
+run_bounded_docker() {
+  local description="$1"
+  shift
+  docker_command_index=$((docker_command_index + 1))
+  local output_file="${acceptance_root}/docker-command-${docker_command_index}.log"
+  local pid
+  local status
+
+  "$@" >"${output_file}" 2>&1 &
+  pid=$!
+  for _ in $(seq 1 "${docker_timeout_seconds}"); do
+    if ! kill -0 "${pid}" 2>/dev/null; then
+      if wait "${pid}"; then
+        status=0
+      else
+        status=$?
+      fi
+      cat "${output_file}"
+      return "${status}"
+    fi
+    sleep 1
+  done
+
+  kill -TERM "${pid}" 2>/dev/null || true
+  sleep 1
+  kill -KILL "${pid}" 2>/dev/null || true
+  wait "${pid}" 2>/dev/null || true
+  cat "${output_file}"
+  printf 'Docker command "%s" timed out after %ss; check the Docker daemon and socket.\n' \
+    "${description}" "${docker_timeout_seconds}" >&2
+  return 124
+}
 
 cleanup() {
   status=$?
-  docker compose -p "${acceptance_project}" -f "${compose_file}" down --volumes --remove-orphans >/dev/null 2>&1 || true
+  run_bounded_docker "compose cleanup" \
+    docker compose -p "${acceptance_project}" -f "${compose_file}" down --volumes --remove-orphans \
+    >/dev/null 2>&1 || true
   case "${acceptance_root}" in
     "${TMPDIR:-/tmp}"/pitools-accept.*) rm -rf -- "${acceptance_root}" ;;
     *) echo "refusing to remove unexpected acceptance path: ${acceptance_root}" >&2 ;;
@@ -20,6 +57,11 @@ cleanup() {
   exit "${status}"
 }
 trap cleanup EXIT
+
+if [[ ! "${docker_timeout_seconds}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "PITOOLS_DOCKER_TIMEOUT_SECONDS must be a positive integer" >&2
+  exit 1
+fi
 
 for command in cargo curl docker openssl rg; do
   command -v "${command}" >/dev/null 2>&1 || {
@@ -43,8 +85,10 @@ export PITOOLS_HTTP_PORT="${http_port}"
 export PITOOLS_POSTGRES_PORT="${postgres_port}"
 export PITOOLS_NATS_PORT="${nats_port}"
 
-docker compose -p "${acceptance_project}" -f "${compose_file}" config --quiet
-docker compose -p "${acceptance_project}" -f "${compose_file}" up -d --build postgres nats pitools pitools-worker
+run_bounded_docker "compose config" \
+  docker compose -p "${acceptance_project}" -f "${compose_file}" config --quiet
+run_bounded_docker "compose up" \
+  docker compose -p "${acceptance_project}" -f "${compose_file}" up -d --build postgres nats pitools pitools-worker
 
 ready_attempt=0
 for attempt in $(seq 1 60); do
@@ -54,8 +98,10 @@ for attempt in $(seq 1 60); do
     break
   fi
   if [[ "${attempt}" == 60 ]]; then
-    docker compose -p "${acceptance_project}" -f "${compose_file}" ps
-    docker compose -p "${acceptance_project}" -f "${compose_file}" logs --no-color pitools | tail -n 60
+    run_bounded_docker "compose ps" \
+      docker compose -p "${acceptance_project}" -f "${compose_file}" ps || true
+    run_bounded_docker "compose logs" \
+      docker compose -p "${acceptance_project}" -f "${compose_file}" logs --no-color pitools | tail -n 60 || true
     exit 1
   fi
   sleep 2

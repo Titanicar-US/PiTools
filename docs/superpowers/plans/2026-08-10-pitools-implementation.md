@@ -20,7 +20,7 @@
 - Every behavior-changing feature has executable BDD scenarios as well as focused unit/contract tests.
 - `make check` is the local changed-scope gate. `make check-full` and `make quality-gates` are CI/post-merge commands only.
 
-## Implementation status (2026-08-11)
+## Implementation status (2026-08-12)
 
 The initial implementation is present and validated through the local changed-scope gate. Delivered slices include the Rust control plane, GitHub App manifest/webhook handling, durable watchlist and job leases, living work-plan comments with approve/skip/cancel Check Run controls (including approval-wait skips/cancellations), deterministic feedback repair, typed approval-gated CI patch application, safe stack planning/base updates, the Pi sidecar protocol, container/Helm packaging, and the dev01 handoff.
 
@@ -31,7 +31,7 @@ The changed-scope `make check` gate includes Rust formatting, the locked Rust an
 ### Evidence-based completion audit
 
 - Tasks 1-10: source implementation, executable BDD coverage, focused tests, packaging, and the dev01/Flux handoff are complete and validated. Provider-backed execution, release publication, and dev01 runtime acceptance remain intentionally external gates.
-- Task 11: local `make check`, local Compose acceptance, exact-head hosted source/image validation, documentation synchronization, and the residual-prerequisite record are complete. Post-merge `make check-full`/`make quality-gates`, human merge, release tagging, App installation, deployment, and authenticated UAT remain owner-gated.
+- Task 11: the changed-scope `make check`, acceptance-script timeout contract, actual-daemon fail-fast check, exact-head hosted source/image validation, documentation synchronization, and residual-prerequisite record are complete. A full Compose acceptance passed on the prior checkout on 2026-08-11, but could not be re-established at this head because the local Docker daemon/socket was unresponsive; the bounded script now fails closed with a diagnostic. Post-merge `make check-full`/`make quality-gates`, human merge, App installation, deployment, and authenticated UAT remain owner-gated.
 
 ---
 
