@@ -136,7 +136,7 @@ Use namespace/pod selectors instead of CIDRs when PostgreSQL or NATS is in-clust
 
 Run the protected `build-image` workflow from an approved `v*` tag. Its `publish-image` matrix publishes multi-architecture `pitools` and `pitools-runner` images to GHCR and records each immutable manifest digest in the corresponding GitHub Actions job summary. Copy those exact `ghcr.io/<owner>/<image>@sha256:<digest>` references into the Flux values change; do not use a mutable tag in dev01. The `validate-image` jobs build with `push: false` and are not image-publication evidence.
 
-From a checkout of the merged `main` branch, the repository release helper can create the protected release that drives this workflow: `make publish PITOOLS_RELEASE_TAG=v0.1.0 PITOOLS_PUBLISH_CONFIRM=yes`. It refuses non-semver tags, missing confirmation, and non-canonical repositories. Do not run it until the human merge and release authorization are complete.
+From a checkout of the merged `main` branch, after PR #6 has merged and post-merge `main` checks are green, the repository release helper can create the replacement release with `make publish PITOOLS_RELEASE_TAG=v0.1.2 PITOOLS_PUBLISH_CONFIRM=yes`. It refuses non-semver tags, missing confirmation, and non-canonical repositories. Never promote the partial v0.1.1 publication; do not run the release helper until the human merge and replacement-release authorization are complete.
 
 ## Database migration gate
 
