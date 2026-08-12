@@ -63,7 +63,7 @@ if [[ ! "${docker_timeout_seconds}" =~ ^[1-9][0-9]*$ ]]; then
   exit 1
 fi
 
-for command in cargo curl docker openssl rg; do
+for command in cargo curl docker openssl grep; do
   command -v "${command}" >/dev/null 2>&1 || {
     echo "required command is missing: ${command}" >&2
     exit 1
@@ -138,7 +138,7 @@ printf 'statuses health=%s ready=%s unauthorized=%s webhook=%s duplicate=%s read
 [[ "${unauthorized_status}" == 401 ]]
 [[ "${webhook_status}" == 202 ]]
 [[ "${duplicate_status}" == 208 ]]
-printf '%s' "${watchlist}" | rg -q '"repository_id":42|"number":7'
-printf '%s' "${events_after}" | rg -q 'acceptance-delivery-1'
-printf '%s' "${metrics_before}${metrics_after}" | rg -q 'pitools_webhook_received_total'
+printf '%s' "${watchlist}" | grep -Eq '"repository_id":42|"number":7'
+printf '%s' "${events_after}" | grep -q 'acceptance-delivery-1'
+printf '%s' "${metrics_before}${metrics_after}" | grep -q 'pitools_webhook_received_total'
 printf 'compose_acceptance=passed\nwatchlist_and_event_persistence=passed\n'

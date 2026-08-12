@@ -54,16 +54,14 @@ esac
 EOF
 chmod +x "${fake_bin}/openssl"
 
-for command in curl rg; do
-  cat >"${fake_bin}/${command}" <<'EOF'
+cat >"${fake_bin}/curl" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
-  chmod +x "${fake_bin}/${command}"
-done
+chmod +x "${fake_bin}/curl"
 
 set +e
-PATH="${fake_bin}:${PATH}" \
+PATH="${fake_bin}:/usr/bin:/bin" \
 FAKE_DOCKER_PIDS="${fake_docker_pids}" \
 PITOOLS_DOCKER_TIMEOUT_SECONDS=1 \
 bash "${repo_root}/scripts/accept-local-compose.sh" >"${output_file}" 2>&1 &
@@ -89,7 +87,7 @@ if [[ -n "${process_state}" && "${process_state}" != Z* ]]; then
   exit 1
 fi
 
-if ! rg -q 'Docker daemon|timed out' "${output_file}"; then
+if ! grep -Eq 'Docker daemon|timed out' "${output_file}"; then
   echo "acceptance script did not report the Docker timeout" >&2
   cat "${output_file}" >&2
   exit 1
