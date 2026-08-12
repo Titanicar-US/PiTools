@@ -4,7 +4,7 @@ PiTools is a self-hosted GitHub App that keeps pull requests moving toward human
 
 The project is in active bootstrap. The control-plane boundary is intentionally fail-closed: PiTools never merges a pull request, and the Pi worker never receives GitHub App credentials or writes to GitHub directly.
 
-The Pi worker defaults to a deterministic diagnosis-only runtime and communicates with the Rust worker over a bounded NATS request/reply subject. Set `PITOOLS_PI_ENABLE_SDK=1` only in the isolated worker workload after configuring its provider credentials; the SDK runtime is toolless and its output still requires Rust-side validation and approval.
+The Pi worker defaults to a deterministic diagnosis-only runtime and communicates with the Rust worker over a bounded NATS request/reply subject. Set `PITOOLS_PI_ENABLE_SDK=1` only in the isolated worker workload after configuring its provider credentials; the SDK runtime is toolless and its output still requires Rust-side validation and approval. Provider-backed jobs use a per-request temporary Pi agent directory under `TMPDIR` and remove it after completion; set `PITOOLS_PI_AGENT_DIR` only when an operator deliberately mounts a writable Pi configuration directory.
 
 ## Capabilities
 

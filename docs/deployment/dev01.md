@@ -44,7 +44,7 @@ Provision three externally managed Kubernetes Secrets through the infrastructure
 
 The chart references these Secrets and never creates them. Restrict the GitHub private key to the core PiTools pod only and rotate it through the GitHub App and secret owner procedures. The Pi worker must not mount or receive the application Secret, a Kubernetes service-account token, or GitHub API egress.
 
-The current runner has two modes: the supported dev01 mode is the long-lived, dependency-free NATS request/reply worker; stdin is reserved for local one-shot protocol checks. Enable `piWorker` only with an immutable runner digest and owner-approved NATS egress. The Rust worker remains the owner of durable queue state, GitHub credentials, mutations, and result validation.
+The current runner has two modes: the supported dev01 mode is the long-lived, dependency-free NATS request/reply worker; stdin is reserved for local one-shot protocol checks. Enable `piWorker` only with an immutable runner digest and owner-approved NATS egress. Provider-backed jobs use a per-request temporary Pi agent directory under the runner's writable `/tmp` volume and remove it after completion. Set `PITOOLS_PI_AGENT_DIR` only when the infrastructure owner deliberately mounts a writable, operator-managed Pi configuration directory. The Rust worker remains the owner of durable queue state, GitHub credentials, mutations, and result validation.
 
 ## Flux values handoff
 

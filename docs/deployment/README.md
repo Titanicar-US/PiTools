@@ -40,7 +40,7 @@ printf '%s\n' '<validated-pi-job-json>' \
       -e PITOOLS_PI_TRANSPORT=stdin pi-worker
 ```
 
-The default diagnosis-only runtime requires no model credential. Enabling the Pi SDK or supplying provider credentials is a separate, caller-owned authorization boundary; do not add those values to this Compose file. A provider-backed worker may return typed unified patches, but Rust applies them only after exact path validation, a fresh PR-head check, the configured validation commands, and an authorized Check Run approval.
+The default diagnosis-only runtime requires no model credential. Enabling the Pi SDK or supplying provider credentials is a separate, caller-owned authorization boundary; do not add those values to this Compose file. Provider-backed jobs use a per-request temporary Pi agent directory under `TMPDIR` and remove it after completion; set `PITOOLS_PI_AGENT_DIR` only when an operator deliberately mounts a writable Pi configuration directory. A provider-backed worker may return typed unified patches, but Rust applies them only after exact path validation, a fresh PR-head check, the configured validation commands, and an authorized Check Run approval.
 
 Repository validation is fail-closed: the core image provides the baseline Git, Make, and shell tooling; policies that select `cargo_*` or `npm_check` require a deployment image variant with those toolchains installed. A missing validator is reported as a failed validation result and never authorizes a push. Validation runs from the copied source snapshot, not the credential-bearing `.git` worktree.
 

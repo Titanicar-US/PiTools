@@ -1,3 +1,7 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { createAgentSession } from "@earendil-works/pi-coding-agent";
 import {
   type PiJobRequest,
@@ -17,7 +21,7 @@ type PiSdkSessionOptions = {
   cwd: string;
   noTools: "all";
   tools: string[];
-  agentDir?: string;
+  agentDir: string;
 };
 
 type PiSdkSession = {
@@ -33,6 +37,21 @@ const defaultPiSdkSessionFactory: PiSdkSessionFactory = async (options) => {
   const result = await createAgentSession(options);
   return { session: result.session };
 };
+
+async function createAgentDirectory(): Promise<{ path: string; cleanup: () => Promise<void> }> {
+  const configured = process.env.PITOOLS_PI_AGENT_DIR?.trim();
+  if (configured) {
+    return { path: configured, cleanup: async () => {} };
+  }
+
+  const path = await mkdtemp(join(tmpdir(), "pitools-pi-agent-"));
+  return {
+    path,
+    cleanup: async () => {
+      await rm(path, { recursive: true, force: true });
+    },
+  };
+}
 
 export class DiagnosisOnlyPiRuntime implements PiRuntimeAdapter {
   async execute(request: PiJobRequest): Promise<unknown> {
@@ -54,54 +73,59 @@ export class DiagnosisOnlyPiRuntime implements PiRuntimeAdapter {
 /**
  * Optional provider-backed Pi runtime. It is deliberately toolless: the Rust
  * control plane owns repository mutations and validation, while Pi only
- * returns a bounded diagnosis/proposal for explicit approval.
+ * returns a bounded diagnosis/proposal for explicit approval. Each job gets a
+ * temporary agent directory unless the operator supplies an explicit writable
+ * `PITOOLS_PI_AGENT_DIR` override.
  */
 export class PiSdkRuntime implements PiRuntimeAdapter {
   constructor(private readonly createSession: PiSdkSessionFactory = defaultPiSdkSessionFactory) {}
 
   async execute(request: PiJobRequest): Promise<unknown> {
-    const agentDir = process.env.PITOOLS_PI_AGENT_DIR;
+    const agentDirectory = await createAgentDirectory();
     const sessionOptions: PiSdkSessionOptions = {
       cwd: process.cwd(),
       noTools: "all",
       tools: [],
+      agentDir: agentDirectory.path,
     };
-    if (agentDir !== undefined) sessionOptions.agentDir = agentDir;
-
-    const { session } = await this.createSession(sessionOptions);
     try {
-      await session.prompt(
-        [
-          "You are the PiTools diagnosis worker.",
-          "Return exactly one JSON object with keys diagnosis, confidence, proposedFiles, proposedPatches, validationCommands, risks, requiresApproval.",
-          "Do not claim that files were changed. Do not include credentials or raw secrets.",
-          `Repository: ${request.repository}`,
-          `Allowed paths: ${request.allowedPaths.join(", ")}`,
-          `Snapshot files:\n${request.snapshotFiles.length === 0
-            ? "not supplied"
-            : request.snapshotFiles
-                .map((file) => `--- ${file.path} ---\n${file.content}`)
-                .join("\n")}`,
-          `Failure evidence: ${request.failureEvidence ?? "not supplied"}`,
-        ].join("\n"),
-      );
-      await session.waitForIdle();
-      const raw = assistantText(session.messages);
-      const parsed = parseProposal(raw);
-      return {
-        protocolVersion: request.protocolVersion,
-        jobId: request.jobId,
-        nonce: request.nonce,
-        diagnosis: parsed.diagnosis,
-        confidence: parsed.confidence,
-        proposedFiles: parsed.proposedFiles,
-        proposedPatches: parsed.proposedPatches,
-        validationCommands: parsed.validationCommands,
-        risks: parsed.risks,
-        requiresApproval: true,
-      };
+      const { session } = await this.createSession(sessionOptions);
+      try {
+        await session.prompt(
+          [
+            "You are the PiTools diagnosis worker.",
+            "Return exactly one JSON object with keys diagnosis, confidence, proposedFiles, proposedPatches, validationCommands, risks, requiresApproval.",
+            "Do not claim that files were changed. Do not include credentials or raw secrets.",
+            `Repository: ${request.repository}`,
+            `Allowed paths: ${request.allowedPaths.join(", ")}`,
+            `Snapshot files:\n${request.snapshotFiles.length === 0
+              ? "not supplied"
+              : request.snapshotFiles
+                  .map((file) => `--- ${file.path} ---\n${file.content}`)
+                  .join("\n")}`,
+            `Failure evidence: ${request.failureEvidence ?? "not supplied"}`,
+          ].join("\n"),
+        );
+        await session.waitForIdle();
+        const raw = assistantText(session.messages);
+        const parsed = parseProposal(raw);
+        return {
+          protocolVersion: request.protocolVersion,
+          jobId: request.jobId,
+          nonce: request.nonce,
+          diagnosis: parsed.diagnosis,
+          confidence: parsed.confidence,
+          proposedFiles: parsed.proposedFiles,
+          proposedPatches: parsed.proposedPatches,
+          validationCommands: parsed.validationCommands,
+          risks: parsed.risks,
+          requiresApproval: true,
+        };
+      } finally {
+        session.dispose();
+      }
     } finally {
-      session.dispose();
+      await agentDirectory.cleanup();
     }
   }
 }

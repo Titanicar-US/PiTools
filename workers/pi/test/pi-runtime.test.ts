@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname } from "node:path";
 
 import { PROTOCOL_VERSION } from "../src/protocol.js";
 import {
@@ -113,4 +116,39 @@ test("provider runtime is toolless, redacts its proposal, and always requires ap
   assert.match(result.diagnosis, /\[REDACTED\]/);
   assert.equal(result.requiresApproval, true);
   assert.equal(disposed, true);
+});
+
+test("provider runtime uses a per-request temporary agent directory by default", async () => {
+  let agentDir: string | undefined;
+  const runtime = new PiSdkRuntime(async (options) => {
+    agentDir = options.agentDir;
+    return {
+      session: {
+        messages: [
+          {
+            role: "assistant",
+            content: JSON.stringify({
+              diagnosis: "temporary session",
+              confidence: 0,
+              proposedFiles: [],
+              proposedPatches: [],
+              validationCommands: [],
+              risks: [],
+              requiresApproval: true,
+            }),
+          },
+        ],
+        prompt: async () => {},
+        waitForIdle: async () => {},
+        dispose: () => {},
+      },
+    };
+  });
+
+  await executePiJob(request, runtime);
+
+  assert.ok(agentDir);
+  assert.equal(dirname(agentDir), tmpdir());
+  assert.match(agentDir, /pitools-pi-agent-/);
+  assert.equal(existsSync(agentDir), false);
 });
