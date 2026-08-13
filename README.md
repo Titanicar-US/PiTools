@@ -4,7 +4,7 @@ PiTools is a self-hosted GitHub App that keeps pull requests moving toward human
 
 The project is in active bootstrap. The control-plane boundary is intentionally fail-closed: PiTools never merges a pull request, and the Pi worker never receives GitHub App credentials or writes to GitHub directly.
 
-The Pi worker defaults to a deterministic diagnosis-only runtime and communicates with the Rust worker over a bounded NATS request/reply subject. Set `PITOOLS_PI_ENABLE_SDK=1` only in the isolated worker workload after configuring its provider credentials; the SDK runtime is toolless and its output still requires Rust-side validation and approval.
+The Pi worker defaults to a deterministic diagnosis-only runtime and communicates with the Rust worker over a bounded NATS request/reply subject. Set `PITOOLS_PI_ENABLE_SDK=1` only in the isolated worker workload after configuring its provider credentials; the SDK runtime is toolless and its output still requires Rust-side validation and approval. Provider-backed jobs use a per-request temporary Pi agent directory under `TMPDIR` and remove it after completion; set `PITOOLS_PI_AGENT_DIR` only when an operator deliberately mounts a writable Pi configuration directory.
 
 ## Capabilities
 
@@ -28,6 +28,8 @@ The Pi worker defaults to a deterministic diagnosis-only runtime and communicate
 
 Run `make install` to fetch dependencies. Run `make check` for the changed-scope local gate.
 
+Run `make maintenance` periodically to remove generated Rust `target/` output and Pi worker `dist/` output from the current checkout. The same cleanup runs weekly and on demand in the [maintenance workflow](.github/workflows/maintenance.yml). If multiple worktrees or checkouts are active, run the command once from each checkout; generated output is local to each one and is not part of Git history.
+
 ## Configuration
 
 Copy `.env.example` to `.env` and provide values through a local secret manager or environment. Never commit a private key, webhook secret, bearer token, model credential, or repository secret.
@@ -44,6 +46,8 @@ The generated manifest requests `administration:read`, `metadata:read`, `pull_re
 
 The operator CLI reads the same durable state used by the server: `pitools watchlist [--json]`, `pitools events [--limit 50] [--json]`, and `pitools audit [--limit 50] [--json]`. Use `pitools reconcile --repository-id <id> --pull-request-number <number>` to enqueue a refresh and `pitools cancel <job-id>` to request cancellation. Event output contains delivery metadata and hashes, not raw webhook payloads; list limits are capped at 100.
 
+Raw webhook bodies are retained for at most seven days for bounded troubleshooting and are purged hourly by the durable worker; event history retains only delivery metadata and payload hashes.
+
 ## Repository policy
 
 Repositories may commit a `.pitools.yml` policy. The policy controls configured automation actors, readiness requirements, validation commands, reconciliation interval, explicit stack parents, and opt-in branch rewrite rules. Start from [the example policy](docs/policy.example.yml); service safety invariants always win.
@@ -54,9 +58,9 @@ The Skip and Cancel actions remain available while a plan is waiting for approva
 
 ## Deployment
 
-The `Dockerfile`, `runner/`, `workers/pi/`, and `helm/pitools/` directories provide the application packaging. Local Compose is for development and acceptance only. The protected `build-image` workflow publishes multi-architecture core and runner images on approved `v*` tags and records immutable GHCR digests in its job summaries. Production dev01 integration is owned by the Flux infrastructure repository and should consume those digests through the Helm chart with external PostgreSQL and NATS endpoints.
+The `Dockerfile`, `runner/`, `workers/pi/`, and `helm/pitools/` directories provide the application packaging. Local Compose is for development and acceptance only. The protected `build-image` workflow publishes multi-architecture core and runner images on approved `v*` tags, requires the tag to match both package manifests, and records immutable GHCR digests in its job summaries. Production dev01 integration is owned by the Flux infrastructure repository and should consume those digests through the Helm chart with external PostgreSQL and NATS endpoints.
 
-After a human merges the validated PR into `main`, publish an explicit release from the canonical repository with `make publish PITOOLS_RELEASE_TAG=v0.1.0 PITOOLS_PUBLISH_CONFIRM=yes`. The command only accepts stable semantic-version tags, requires the confirmation flag, creates the GitHub release against `main`, and lets the protected image workflow produce the immutable digests for the Flux handoff. It is intentionally not run during local validation.
+Release [v0.1.2](https://github.com/Titanicar-US/PiTools/releases/tag/v0.1.2) is the current deployable release. Its immutable GHCR image digests are recorded in the [dev01 Flux handoff](docs/deployment/dev01.md). The next unreleased package version is `0.1.3`; future release tags must match both the Cargo and Pi worker package versions. For a future release, publish an explicit stable semantic-version tag from the canonical repository with `make publish PITOOLS_RELEASE_TAG=vMAJOR.MINOR.PATCH PITOOLS_PUBLISH_CONFIRM=yes` after the human merge and post-merge checks. The command requires the confirmation flag, creates the GitHub release against `main`, and lets the protected image workflow produce the immutable digests for the Flux handoff. It is intentionally not run during local validation.
 
 Provider-backed Pi execution is disabled by default. The Helm chart enables it only through a separate provider Secret, explicit `secretEnv` mappings, and a Pi-worker-only HTTPS egress allowlist; the application Secret and GitHub/control-plane environment names are rejected at render time.
 

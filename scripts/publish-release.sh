@@ -20,6 +20,8 @@ if [[ ! "${release_tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   exit 2
 fi
 
+bash "$(dirname "${BASH_SOURCE[0]}")/validate-release-version.sh" "${release_tag}"
+
 if ! command -v gh >/dev/null 2>&1; then
   echo "gh CLI is required to publish a release" >&2
   exit 2

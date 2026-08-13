@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 publish_script="${repo_root}/scripts/publish-release.sh"
+version_script="${repo_root}/scripts/validate-release-version.sh"
 image_workflow="${repo_root}/.github/workflows/build-image.yml"
 makefile="${repo_root}/Makefile"
 dockerfile="${repo_root}/Dockerfile"
@@ -15,6 +16,15 @@ if ! grep -Fq $'\tcargo fmt --all -- --check' "${makefile}"; then
 fi
 if ! grep -Fq $'\thelm/pitools/ci/verify-render.sh' "${makefile}"; then
   echo "make check must validate the Helm render contract" >&2
+  exit 1
+fi
+
+if "${version_script}" v0.1.0 >/dev/null 2>&1; then
+  echo "release validation must reject a tag that does not match package versions" >&2
+  exit 1
+fi
+if ! "${version_script}" v0.1.3 >/dev/null 2>&1; then
+  echo "release validation must accept the matching package version" >&2
   exit 1
 fi
 
@@ -42,6 +52,10 @@ if ! grep -Fq -- '          RELEASE_TAG: ${{ github.ref_name }}' "${image_workfl
 fi
 if ! grep -Fq -- '          [[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]' "${image_workflow}"; then
   echo "image publication must require an exact semantic release tag" >&2
+  exit 1
+fi
+if ! grep -Fq -- '          bash scripts/validate-release-version.sh "${RELEASE_TAG}"' "${image_workflow}"; then
+  echo "image publication must match the package versions" >&2
   exit 1
 fi
 
@@ -83,7 +97,7 @@ if PITOOLS_RELEASE_TAG=v0.1.0 PITOOLS_PUBLISH_CONFIRM=yes \
 fi
 
 arguments_file="${temporary_root}/arguments"
-PITOOLS_RELEASE_TAG=v0.1.0 \
+PITOOLS_RELEASE_TAG=v0.1.3 \
 PITOOLS_PUBLISH_CONFIRM=yes \
 PITOOLS_REPOSITORY=Titanicar-US/PiTools \
 PITOOLS_TEST_ARGS_FILE="${arguments_file}" \
@@ -94,7 +108,7 @@ mapfile -t actual_arguments <"${arguments_file}"
 expected_arguments=(
   release
   create
-  v0.1.0
+  v0.1.3
   --repo
   Titanicar-US/PiTools
   --target

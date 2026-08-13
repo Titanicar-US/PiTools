@@ -17,6 +17,22 @@ Before opening an infrastructure change, record:
 
 Do not continue if any owner or source is unknown. Do not copy secret values into Git, Helm values, command history, tickets, or this runbook.
 
+## Observed dev01 platform facts
+
+Read-only inspection of the current dev01 cluster and Flux objects on 2026-08-13 confirms the following non-secret routing facts:
+
+- Flux tracks `https://github.com/Titanicar-US/code_pipeline.git` on `main`.
+- The Flux source is healthy at revision `main@sha1:30603c01`, and the currently reconciled dev01 Kustomizations are healthy.
+- The dev01 root Kustomization path is `./platform/targets/k8s-flux/clusters/dev01`.
+- The repository's application aggregate is `platform/targets/k8s-flux/apps/kustomization.yaml`; read-only inspection on 2026-08-13 found no PiTools entry or PiTools overlay. The Flux owner must choose and wire the PiTools app path into the appropriate dev01 aggregate before rollout.
+- The existing application namespace is `codex-specops`.
+- The existing public Gateway is `codex-specops-public` in namespace `codex-specops`, with the `hooks-https` listener for `hooks.e164sip.com`.
+- The namespace currently provides `postgres:5432` and `nats:4222` Services.
+- A fresh label-scoped read found no PiTools Deployment, Service, HTTPRoute, or NetworkPolicy resources.
+- The infrastructure repository's dev01 scaffold is present, but its `apps` aggregate remains placeholder-only; a separate infrastructure change is required before PiTools can be reconciled.
+
+These are discovery results, not deployment authorization. The dev01 platform owner must still confirm the namespace, Gateway/hostname/TLS ownership, service and secret references, egress policy, and authenticated UAT scope before an infrastructure change is opened. Do not infer owner approval from the existence of these resources.
+
 ## Secret contract
 
 Provision three externally managed Kubernetes Secrets through the infrastructure repository's established SOPS, External Secrets, or equivalent workflow:
@@ -30,7 +46,7 @@ Provision three externally managed Kubernetes Secrets through the infrastructure
 
 The chart references these Secrets and never creates them. Restrict the GitHub private key to the core PiTools pod only and rotate it through the GitHub App and secret owner procedures. The Pi worker must not mount or receive the application Secret, a Kubernetes service-account token, or GitHub API egress.
 
-The current runner has two modes: the supported dev01 mode is the long-lived, dependency-free NATS request/reply worker; stdin is reserved for local one-shot protocol checks. Enable `piWorker` only with an immutable runner digest and owner-approved NATS egress. The Rust worker remains the owner of durable queue state, GitHub credentials, mutations, and result validation.
+The current runner has two modes: the supported dev01 mode is the long-lived, dependency-free NATS request/reply worker; stdin is reserved for local one-shot protocol checks. Enable `piWorker` only with an immutable runner digest and owner-approved NATS egress. Provider-backed jobs use a per-request temporary Pi agent directory under the runner's writable `/tmp` volume and remove it after completion. Set `PITOOLS_PI_AGENT_DIR` only when the infrastructure owner deliberately mounts a writable, operator-managed Pi configuration directory. The Rust worker remains the owner of durable queue state, GitHub credentials, mutations, and result validation.
 
 ## Flux values handoff
 
@@ -134,9 +150,9 @@ Use namespace/pod selectors instead of CIDRs when PostgreSQL or NATS is in-clust
 
 ## Image publication handoff
 
-Run the protected `build-image` workflow from an approved `v*` tag. Its `publish-image` matrix publishes multi-architecture `pitools` and `pitools-runner` images to GHCR and records each immutable manifest digest in the corresponding GitHub Actions job summary. Copy those exact `ghcr.io/<owner>/<image>@sha256:<digest>` references into the Flux values change; do not use a mutable tag in dev01. The `validate-image` jobs build with `push: false` and are not image-publication evidence.
+Run the protected `build-image` workflow from an approved `v*` tag whose value matches both package manifests. Its `publish-image` matrix publishes multi-architecture `pitools` and `pitools-runner` images to GHCR and records each immutable manifest digest in the corresponding GitHub Actions job summary. Copy those exact `ghcr.io/<owner>/<image>@sha256:<digest>` references into the Flux values change; do not use a mutable tag in dev01. The `validate-image` jobs build with `push: false` and are not image-publication evidence.
 
-From a checkout of the merged `main` branch, after PR #6 has merged and post-merge `main` checks are green, the repository release helper can create the replacement release with `make publish PITOOLS_RELEASE_TAG=v0.1.2 PITOOLS_PUBLISH_CONFIRM=yes`. It refuses non-semver tags, missing confirmation, and non-canonical repositories. Never promote the partial v0.1.1 publication; do not run the release helper until the human merge and replacement-release authorization are complete.
+From a checkout of the merged `main` branch, after the post-merge `main` checks are green, release [v0.1.2](https://github.com/Titanicar-US/PiTools/releases/tag/v0.1.2) is the current deployable release. Its immutable image references are `ghcr.io/titanicar-us/pitools@sha256:50c8ae460d0f873f35138dbc7a04d00f9bf8465f434aebd7169410997a397c3d` and `ghcr.io/titanicar-us/pitools-runner@sha256:35d01c8332d0ea62b0df5dd67d6c782a09b7c4b1dbe3c775b78fa8391e391fe4`. Never promote the partial v0.1.1 publication; use the exact digests above in the Flux values change.
 
 ## Database migration gate
 

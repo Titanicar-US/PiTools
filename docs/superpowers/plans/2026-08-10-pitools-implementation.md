@@ -6,7 +6,7 @@
 
 **Architecture:** A Rust Axum service owns GitHub authority, Postgres state, webhook/event processing, readiness, policy, comments, Check Run controls, and mutations. A TypeScript Pi sidecar is an untrusted reasoning worker that returns only validated typed results over a restricted NATS request/reply subject. NATS provides best-effort wakeups and sidecar transport; Postgres stores durable jobs, leases, retries, and cancellation.
 
-**Tech Stack:** Rust 1.97 toolchain, Tokio, Axum, SQLx/Postgres, Reqwest, JSON Web Tokens, HMAC/SHA-256, async-nats, Clap, Serde, TypeScript 5.9, Pi SDK 0.82, Valibot, Node test runner, Docker, Helm, Kubernetes, and Cucumber BDD scenarios.
+**Tech Stack:** Rust 1.97 toolchain, Tokio, Axum, SQLx/Postgres, Reqwest, JSON Web Tokens, HMAC/SHA-256, async-nats, Clap, Serde, TypeScript 5.9, Pi SDK 0.84.1, Valibot, Node test runner, Docker, Helm, Kubernetes, and Cucumber BDD scenarios.
 
 ## Global Constraints
 
@@ -20,7 +20,7 @@
 - Every behavior-changing feature has executable BDD scenarios as well as focused unit/contract tests.
 - `make check` is the local changed-scope gate. `make check-full` and `make quality-gates` are CI/post-merge commands only.
 
-## Implementation status (2026-08-11)
+## Implementation status (2026-08-12)
 
 The initial implementation is present and validated through the local changed-scope gate. Delivered slices include the Rust control plane, GitHub App manifest/webhook handling, durable watchlist and job leases, living work-plan comments with approve/skip/cancel Check Run controls (including approval-wait skips/cancellations), deterministic feedback repair, typed approval-gated CI patch application, safe stack planning/base updates, the Pi sidecar protocol, container/Helm packaging, and the dev01 handoff.
 
@@ -31,7 +31,7 @@ The changed-scope `make check` gate includes Rust formatting, the locked Rust an
 ### Evidence-based completion audit
 
 - Tasks 1-10: source implementation, executable BDD coverage, focused tests, packaging, and the dev01/Flux handoff are complete and validated. Provider-backed execution, release publication, and dev01 runtime acceptance remain intentionally external gates.
-- Task 11: local `make check`, local Compose acceptance, exact-head hosted source/image validation, documentation synchronization, and the residual-prerequisite record are complete. Post-merge `make check-full`/`make quality-gates`, human merge, release tagging, App installation, deployment, and authenticated UAT remain owner-gated.
+- Task 11: the changed-scope `make check`, acceptance-script timeout contract, actual-daemon fail-fast check, exact-head hosted source/image validation, documentation synchronization, and residual-prerequisite record are complete. A full Compose acceptance passed on the prior checkout on 2026-08-11, but could not be re-established at this head because the local Docker daemon/socket was unresponsive; the bounded script now fails closed with a diagnostic. Post-merge `make check-full`/`make quality-gates`, human merge, App installation, deployment, and authenticated UAT remain owner-gated.
 
 ---
 
@@ -49,7 +49,7 @@ The changed-scope `make check` gate includes Rust formatting, the locked Rust an
 
 - [x] Write the bootstrap BDD scenario asserting the repository exposes the documented commands and refuses to start without required configuration.
 - [x] Add the Rust workspace and shared dependency versions approved by Dependency Advisor: Tokio 1.53.1, Axum 0.8.9, SQLx 0.9.0, Serde 1.0.229, Serde JSON 1.0.151, Reqwest 0.13.4, JSON Web Token 11.0.0, HMAC 0.13.0, SHA-2 0.11.0, Clap 4.6.4, Tracing 0.1.44, Tracing Subscriber 0.3.23, UUID 1.24.0, Chrono 0.4.45, Thiserror 2.0.19, Anyhow 1.0.104, Dotenvy 0.15.7, Async NATS 0.50.0, Tower HTTP 0.7.0, and Cucumber 0.23.0.
-- [x] Add the TypeScript worker package with TypeScript 5.9.3, Node types 24.13.3, Pi SDK 0.82.1, and Valibot 1.4.2; keep the provider wrapper behind a local interface so tests do not need model credentials.
+- [x] Add the TypeScript worker package with TypeScript 5.9.3, Node types 24.13.3, Pi SDK 0.84.1, and Valibot 1.4.2; keep the provider wrapper behind a local interface so tests do not need model credentials.
 - [x] Add Makefile targets: `install`, `check`, `check-full`, `quality-gates`, `clean`, `build`, and `publish`. `make check` runs Rust formatting/lint/tests, Node tests, BDD tests, and manifest validation; `make check-full` runs all tests; `make quality-gates` runs non-test packaging/security checks only.
 - [x] Add README sections for local setup, App Manifest creation, required secrets without secret values, commands, policy file, webhook route, and the dev01 Helm/Flux handoff.
 - [x] Run the focused bootstrap BDD and `make check`.
