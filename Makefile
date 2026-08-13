@@ -1,4 +1,4 @@
-.PHONY: install check check-full quality-gates clean build publish acceptance
+.PHONY: install check check-full quality-gates clean maintenance build publish acceptance
 
 PITOOLS_REPOSITORY ?= Titanicar-US/PiTools
 PITOOLS_RELEASE_TAG ?=
@@ -17,6 +17,7 @@ check:
 	bash -n scripts/accept-local-compose.sh
 	bash tests/acceptance_script.sh
 	bash tests/publish_contract.sh
+	bash tests/maintenance_contract.sh
 
 acceptance:
 	bash scripts/accept-local-compose.sh
@@ -31,8 +32,10 @@ quality-gates:
 	npm --prefix workers/pi audit --audit-level=high
 
 clean:
-	cargo clean
-	npm --prefix workers/pi run clean
+	bash scripts/maintenance.sh
+
+maintenance:
+	bash scripts/maintenance.sh
 
 build:
 	cargo build --release

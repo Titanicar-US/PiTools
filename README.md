@@ -28,6 +28,8 @@ The Pi worker defaults to a deterministic diagnosis-only runtime and communicate
 
 Run `make install` to fetch dependencies. Run `make check` for the changed-scope local gate.
 
+Run `make maintenance` periodically to remove generated Rust `target/` output and Pi worker `dist/` output from the current checkout. The same cleanup runs weekly and on demand in the [maintenance workflow](.github/workflows/maintenance.yml). If multiple worktrees or checkouts are active, run the command once from each checkout; generated output is local to each one and is not part of Git history.
+
 ## Configuration
 
 Copy `.env.example` to `.env` and provide values through a local secret manager or environment. Never commit a private key, webhook secret, bearer token, model credential, or repository secret.

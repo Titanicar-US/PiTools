@@ -1,0 +1,32 @@
+name: maintenance
+
+on:
+  schedule:
+    - cron: "17 3 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generated-artifacts:
+    name: clean generated artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - name: Run maintenance contract
+        run: bash tests/maintenance_contract.sh
+
+      - name: Clean this checkout
+        run: make maintenance
+
+      - name: Confirm generated paths are absent
+        run: test ! -e target && test ! -e workers/pi/dist
