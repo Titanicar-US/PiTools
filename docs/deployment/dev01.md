@@ -19,15 +19,17 @@ Do not continue if any owner or source is unknown. Do not copy secret values int
 
 ## Observed dev01 platform facts
 
-Read-only inspection of the current dev01 cluster and Flux objects on 2026-08-12 confirms the following non-secret routing facts:
+Read-only inspection of the current dev01 cluster and Flux objects on 2026-08-13 confirms the following non-secret routing facts:
 
 - Flux tracks `https://github.com/Titanicar-US/code_pipeline.git` on `main`.
+- The Flux source is healthy at revision `main@sha1:30603c01`, and the currently reconciled dev01 Kustomizations are healthy.
 - The dev01 root Kustomization path is `./platform/targets/k8s-flux/clusters/dev01`.
-- The repository's application aggregate is `platform/targets/k8s-flux/apps/kustomization.yaml`; read-only inspection on 2026-08-12 found no PiTools entry or PiTools overlay. The Flux owner must choose and wire the PiTools app path into the appropriate dev01 aggregate before rollout.
+- The repository's application aggregate is `platform/targets/k8s-flux/apps/kustomization.yaml`; read-only inspection on 2026-08-13 found no PiTools entry or PiTools overlay. The Flux owner must choose and wire the PiTools app path into the appropriate dev01 aggregate before rollout.
 - The existing application namespace is `codex-specops`.
 - The existing public Gateway is `codex-specops-public` in namespace `codex-specops`, with the `hooks-https` listener for `hooks.e164sip.com`.
 - The namespace currently provides `postgres:5432` and `nats:4222` Services.
-- No PiTools Kubernetes resources are currently deployed.
+- A fresh label-scoped read found no PiTools Deployment, Service, HTTPRoute, or NetworkPolicy resources.
+- The infrastructure repository's dev01 scaffold is present, but its `apps` aggregate remains placeholder-only; a separate infrastructure change is required before PiTools can be reconciled.
 
 These are discovery results, not deployment authorization. The dev01 platform owner must still confirm the namespace, Gateway/hostname/TLS ownership, service and secret references, egress policy, and authenticated UAT scope before an infrastructure change is opened. Do not infer owner approval from the existence of these resources.
 

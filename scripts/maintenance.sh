@@ -13,7 +13,7 @@ fi
 cargo_bin="${CARGO:-cargo}"
 npm_bin="${NPM:-npm}"
 
-"$cargo_bin" clean --manifest-path "$maintenance_root/Cargo.toml"
+CARGO_TARGET_DIR="$maintenance_root/target" "$cargo_bin" clean --manifest-path "$maintenance_root/Cargo.toml"
 
 if [[ -f "$maintenance_root/workers/pi/package.json" ]]; then
   "$npm_bin" --prefix "$maintenance_root/workers/pi" run clean
