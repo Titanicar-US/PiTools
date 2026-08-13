@@ -22,7 +22,7 @@ Do not continue if any owner or source is unknown. Do not copy secret values int
 Read-only inspection of the current dev01 cluster and Flux objects on 2026-08-13 confirms the following non-secret routing facts:
 
 - Flux tracks `https://github.com/Titanicar-US/code_pipeline.git` on `main`.
-- The Flux source is healthy at revision `main@sha1:30603c01`, and the currently reconciled dev01 Kustomizations are healthy.
+- The Flux source is healthy at revision `main@sha1:ddbf83a2415b57116916baa1bf3cc225a0cfde0e`, after target PR [#709](https://github.com/Titanicar-US/code_pipeline/pull/709) merged, and the currently reconciled dev01 Kustomizations are healthy.
 - The dev01 root Kustomization path is `./platform/targets/k8s-flux/clusters/dev01`.
 - The repository's application aggregate is `platform/targets/k8s-flux/apps/kustomization.yaml`; read-only inspection on 2026-08-13 found no PiTools entry or PiTools overlay. The Flux owner must choose and wire the PiTools app path into the appropriate dev01 aggregate before rollout.
 - The existing application namespace is `codex-specops`.
