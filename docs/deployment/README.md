@@ -65,3 +65,32 @@ Provider access is a separate Pi-worker egress contract: set `piWorker.networkPo
 Provider-backed SDK execution is also opt-in. Set `piWorker.provider.enabled=true`, reference a separate external Secret with `piWorker.provider.existingSecret`, and map only provider credential keys through `piWorker.provider.secretEnv`. The chart rejects reuse of the application Secret and rejects GitHub, database, NATS, or PiTools control-plane environment names. Leave the provider disabled for deterministic diagnosis-only operation.
 
 With `piWorker.enabled=true`, the chart runs the long-lived NATS worker. Keep NATS egress restricted to the approved NATS peer; the worker still has no GitHub API egress or application secret. The Rust worker owns durable job state, request binding, timeouts, and mutation approval. The HTTP server also performs scoped periodic open-PR inventory so a missed webhook does not permanently remove a PR from observation once its installation/repository record exists.
+
+## Flux promotion
+
+PiTools carries its source-owned activation bundle under the same layout used by
+the infrastructure repository:
+
+```text
+platform/targets/k8s-flux/apps/pitools/
+```
+
+The protected `publish-flux` workflow validates that bundle, checks out
+`Titanicar-US/code_pipeline`, copies only the matching application path and
+`platform/targets/k8s-flux/apps/kustomization.yaml`, and opens a ready-for-review
+automation PR. It is idempotent and records the source SHA and paired immutable
+core/runner image references in the PR. It does not use Kubernetes credentials,
+application Secrets, or the GitHub App private key.
+
+The workflow requires a separately provisioned `CODE_PIPELINE_DEPLOY_TOKEN` in
+the protected `code-pipeline-promotion` environment. The token must be scoped
+to the target repository's source checkout, automation-branch push, and pull
+request operations. Do not put it in Git, PR text, workflow output, or Flux
+manifests.
+
+The target repository owns the companion guarded merge workflow. It runs from
+protected target-repository code, never executes the activation PR head, and
+accepts only the generated PiTools branch/title/marker and exact activation
+paths. It waits for passing target checks and a safe GitHub merge state before
+requesting GitHub-native regular auto-merge. This is target-repository
+promotion, not PiTools application-PR merge authority.
