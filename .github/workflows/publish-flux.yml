@@ -1,0 +1,178 @@
+name: publish-flux
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "platform/targets/k8s-flux/apps/pitools/**"
+      - ".github/workflows/publish-flux.yml"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Open or update the code_pipeline Flux activation PR"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-flux-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish Flux activation PR
+    if: >-
+      github.ref_protected == true &&
+      (
+        github.event_name == 'push' ||
+        (github.event_name == 'workflow_dispatch' && inputs.publish == true)
+      )
+    environment: code-pipeline-promotion
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out PiTools source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: source
+          ref: ${{ github.sha }}
+
+      - name: Validate source-owned Flux bundle
+        working-directory: source
+        run: python3 scripts/publish-flux.py validate --source platform/targets/k8s-flux/apps/pitools
+
+      - name: Check out code_pipeline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Titanicar-US/code_pipeline
+          token: ${{ secrets.CODE_PIPELINE_DEPLOY_TOKEN }}
+          path: code_pipeline
+          ref: main
+          fetch-depth: 0
+
+      - name: Require a clean target checkout
+        working-directory: code_pipeline
+        run: test -z "$(git status --porcelain --untracked-files=all)"
+
+      - name: Synchronize the allowlisted Flux paths
+        id: sync
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          source_bundle="source/platform/targets/k8s-flux/apps/pitools"
+          target_bundle="code_pipeline/platform/targets/k8s-flux/apps/pitools"
+          target_aggregate="code_pipeline/platform/targets/k8s-flux/apps/kustomization.yaml"
+          python3 source/scripts/publish-flux.py sync \
+            --source "${source_bundle}" \
+            --destination "${target_bundle}" \
+            --aggregate "${target_aggregate}"
+
+          activation_paths=(
+            platform/targets/k8s-flux/apps/pitools
+            platform/targets/k8s-flux/apps/kustomization.yaml
+          )
+          while IFS= read -r status_line; do
+            [[ -z "${status_line}" ]] && continue
+            path="${status_line:3}"
+            allowed=false
+            for activation_path in "${activation_paths[@]}"; do
+              if [[ "${path}" == "${activation_path}" || "${path}" == "${activation_path}"/* ]]; then
+                allowed=true
+                break
+              fi
+            done
+            if [[ "${allowed}" != true ]]; then
+              echo "::error::synchronization changed an unapproved path: ${path}"
+              exit 1
+            fi
+          done < <(git -C code_pipeline status --porcelain=v1 --untracked-files=all)
+
+          git -C code_pipeline checkout -B "automation/pitools-flux-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git -C code_pipeline add -A -- "${activation_paths[@]}"
+          staged_paths="$(git -C code_pipeline diff --cached --name-only)"
+          if [[ -z "${staged_paths}" ]]; then
+            echo "Target Flux already matches the source bundle."
+            echo "changed=false" >>"${GITHUB_OUTPUT}"
+            echo "source_sha=${SOURCE_SHA}" >>"${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          while IFS= read -r path; do
+            [[ -z "${path}" ]] && continue
+            allowed=false
+            for activation_path in "${activation_paths[@]}"; do
+              if [[ "${path}" == "${activation_path}" || "${path}" == "${activation_path}"/* ]]; then
+                allowed=true
+                break
+              fi
+            done
+            if [[ "${allowed}" != true ]]; then
+              echo "::error::staged an unapproved path: ${path}"
+              exit 1
+            fi
+          done <<<"${staged_paths}"
+
+          core_image="$(grep -Eo 'ghcr.io/titanicar-us/pitools@sha256:[0-9a-f]{64}' \
+            source/platform/targets/k8s-flux/apps/pitools/app.yaml | head -n 1)"
+          runner_image="$(grep -Eo 'ghcr.io/titanicar-us/pitools-runner@sha256:[0-9a-f]{64}' \
+            source/platform/targets/k8s-flux/apps/pitools/app.yaml | head -n 1)"
+          test -n "${core_image}"
+          test -n "${runner_image}"
+          git -C code_pipeline config user.name "github-actions[bot]"
+          git -C code_pipeline config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C code_pipeline commit \
+            -m "chore(deploy): sync PiTools Flux bundle" \
+            -m "- Copy the source-owned PiTools Flux bundle into the activation layout." \
+            -m "- Register the PiTools app in the target apps aggregate." \
+            -m "- Promote immutable core and runner image references only."
+          git -C code_pipeline push --force-with-lease origin \
+            "automation/pitools-flux-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          {
+            echo "changed=true"
+            echo "source_sha=${SOURCE_SHA}"
+            echo "core_image=${core_image}"
+            echo "runner_image=${runner_image}"
+            echo "branch=automation/pitools-flux-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          } >>"${GITHUB_OUTPUT}"
+
+      - name: Open or update the code_pipeline PR
+        if: steps.sync.outputs.changed == 'true'
+        working-directory: code_pipeline
+        env:
+          GH_TOKEN: ${{ secrets.CODE_PIPELINE_DEPLOY_TOKEN }}
+          SOURCE_SHA: ${{ steps.sync.outputs.source_sha }}
+          CORE_IMAGE: ${{ steps.sync.outputs.core_image }}
+          RUNNER_IMAGE: ${{ steps.sync.outputs.runner_image }}
+          BRANCH: ${{ steps.sync.outputs.branch }}
+        run: |
+          set -euo pipefail
+          body_file="$(mktemp)"
+          trap 'rm -f "${body_file}"' EXIT
+          cat >"${body_file}" <<EOF
+          <!-- PITOOLS_FLUX_PROMOTION -->
+          ## Summary
+          - Sync the PiTools source Flux bundle into the matching activation path.
+          - Register the PiTools app in the target apps Kustomization.
+          - Change only the PiTools activation allowlist.
+
+          ## Evidence
+          - Source repository: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}
+          - Source SHA: `${SOURCE_SHA}`
+          - Source workflow: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          - Core image: `${CORE_IMAGE}`
+          - Runner image: `${RUNNER_IMAGE}`
+          - Activation paths: `platform/targets/k8s-flux/apps/pitools`, `platform/targets/k8s-flux/apps/kustomization.yaml`
+          EOF
+
+          title="chore(deploy): sync PiTools Flux bundle"
+          existing_pr="$(gh pr list --repo Titanicar-US/code_pipeline --head "${BRANCH}" --base main --json number --jq '.[0].number // ""')"
+          if [[ -n "${existing_pr}" ]]; then
+            gh pr edit "${existing_pr}" --repo Titanicar-US/code_pipeline --title "${title}" --body-file "${body_file}"
+            gh pr view "${existing_pr}" --repo Titanicar-US/code_pipeline --json url --jq '.url'
+          else
+            gh pr create --repo Titanicar-US/code_pipeline --base main --head "${BRANCH}" \
+              --title "${title}" --body-file "${body_file}"
+          fi

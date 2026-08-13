@@ -138,6 +138,37 @@ networkPolicy:
 
 Use namespace/pod selectors instead of CIDRs when PostgreSQL or NATS is in-cluster. Narrow core HTTPS egress to the platform's approved GitHub API/proxy ranges and Pi-worker HTTPS egress to the approved model-provider or proxy ranges; do not use `0.0.0.0/0` as a convenience default. The chart keeps Pi-worker HTTPS disabled unless this separate `piWorker.networkPolicy.egress.https` allowlist is explicitly supplied.
 
+## Source-to-Flux promotion
+
+Once the dev01 owner confirms the values above, PiTools' protected
+`publish-flux` workflow becomes the source-side promotion entry point. It
+validates the source-owned bundle at
+`platform/targets/k8s-flux/apps/pitools/`, copies it into the identical
+`code_pipeline/platform/targets/k8s-flux/apps/pitools/` path, registers only
+that app in the target apps aggregate, and opens a ready-for-review PR. The
+workflow stages only these activation paths:
+
+- `platform/targets/k8s-flux/apps/pitools/`;
+- `platform/targets/k8s-flux/apps/kustomization.yaml`.
+
+It rejects mutable image tags, malformed digests, Secret documents, plaintext
+credentials, symlinks, and changes outside the allowlist. It records the
+source commit and both immutable image references in the target PR. A matching
+target state is a successful no-op.
+
+The target `code_pipeline` repository must separately install its guarded
+`pull_request_target` merge workflow. That workflow validates the generated
+branch, title, marker, same-repository head, changed paths, visible checks, and
+GitHub merge state from protected target code, then requests regular
+GitHub-native auto-merge. It does not run source PR code and it does not bypass
+branch protection. The source workflow cannot deploy or reconcile Flux by
+itself.
+
+The source workflow's `CODE_PIPELINE_DEPLOY_TOKEN` is a distinct target-repo
+credential held only in the protected Actions environment. It is unrelated to
+the GitHub App credentials and must never be placed in the Flux bundle or any
+Kubernetes Secret manifest.
+
 ## Pre-reconciliation checks
 
 1. Render the exact Flux candidate values with `helm lint` and `helm template`.

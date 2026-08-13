@@ -43,6 +43,10 @@ struct World {
     work_plan: Option<RunState>,
     work_plan_status: Option<RunStatus>,
     feedback_directory: Option<tempfile::TempDir>,
+    flux_directory: Option<tempfile::TempDir>,
+    flux_sync_succeeded: bool,
+    flux_target_bundle_present: bool,
+    flux_unrelated_preserved: bool,
     feedback_applied: bool,
     feedback_contents: Option<String>,
     feedback_outcome: Option<String>,
@@ -1076,6 +1080,97 @@ fn validates_manifest_permissions(world: &mut World) {
 #[then("the manifest requests administration read permission")]
 fn manifest_requests_administration_read(world: &mut World) {
     assert!(world.manifest_admin_permission);
+}
+
+#[given("a valid PiTools Flux promotion fixture")]
+fn valid_flux_promotion_fixture(world: &mut World) {
+    let directory = tempfile::tempdir().expect("Flux fixture directory");
+    let source = directory
+        .path()
+        .join("source/platform/targets/k8s-flux/apps/pitools");
+    let apps = directory
+        .path()
+        .join("target/platform/targets/k8s-flux/apps");
+    fs::create_dir_all(&source).expect("source Flux directory");
+    fs::create_dir_all(&apps).expect("target Flux directory");
+    fs::write(
+        source.join("kustomization.yaml"),
+        "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n- app.yaml\n- route.yaml\n- networkpolicy.yaml\n",
+    )
+    .expect("Flux Kustomization");
+    fs::write(
+        source.join("app.yaml"),
+        "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: pitools\nspec:\n  template:\n    spec:\n      containers:\n        - name: pitools\n          image: ghcr.io/titanicar-us/pitools@sha256:50c8ae460d0f873f35138dbc7a04d00f9bf8465f434aebd7169410997a397c3d\n        - name: pi-worker\n          image: ghcr.io/titanicar-us/pitools-runner@sha256:35d01c8332d0ea62b0df5dd67d6c782a09b7c4b1dbe3c775b78fa8391e391fe4\n",
+    )
+    .expect("Flux app");
+    fs::write(
+        source.join("route.yaml"),
+        "apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: pitools\n",
+    )
+    .expect("Flux route");
+    fs::write(
+        source.join("networkpolicy.yaml"),
+        "apiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: pitools\n",
+    )
+    .expect("Flux NetworkPolicy");
+    fs::write(
+        apps.join("kustomization.yaml"),
+        "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n- existing-app\n",
+    )
+    .expect("target apps Kustomization");
+    fs::write(apps.join("README.md"), "unrelated target content\n").expect("unrelated target file");
+    world.flux_directory = Some(directory);
+}
+
+#[when("the Flux promotion bundle is synchronized")]
+fn synchronize_flux_promotion(world: &mut World) {
+    let directory = world.flux_directory.as_ref().expect("Flux fixture");
+    let root = directory.path();
+    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/publish-flux.py");
+    let status = Command::new("python3")
+        .arg(script)
+        .arg("sync")
+        .arg("--source")
+        .arg(root.join("source/platform/targets/k8s-flux/apps/pitools"))
+        .arg("--destination")
+        .arg(root.join("target/platform/targets/k8s-flux/apps/pitools"))
+        .arg("--aggregate")
+        .arg(root.join("target/platform/targets/k8s-flux/apps/kustomization.yaml"))
+        .status()
+        .expect("run Flux promotion helper");
+    world.flux_sync_succeeded = status.success();
+    let target_bundle = root.join("target/platform/targets/k8s-flux/apps/pitools");
+    world.flux_target_bundle_present = [
+        "kustomization.yaml",
+        "app.yaml",
+        "route.yaml",
+        "networkpolicy.yaml",
+    ]
+    .iter()
+    .all(|file| target_bundle.join(file).is_file());
+    world.flux_unrelated_preserved =
+        fs::read_to_string(root.join("target/platform/targets/k8s-flux/apps/README.md"))
+            .expect("read unrelated target file")
+            == "unrelated target content\n";
+}
+
+#[then("the target bundle is copied to the matching activation path")]
+fn target_flux_bundle_is_copied(world: &mut World) {
+    assert!(world.flux_sync_succeeded);
+    assert!(world.flux_target_bundle_present);
+    let directory = world.flux_directory.as_ref().expect("Flux fixture");
+    let aggregate = fs::read_to_string(
+        directory
+            .path()
+            .join("target/platform/targets/k8s-flux/apps/kustomization.yaml"),
+    )
+    .expect("target apps Kustomization");
+    assert_eq!(aggregate.matches("- pitools").count(), 1);
+}
+
+#[then("unrelated target files remain unchanged")]
+fn unrelated_flux_target_files_remain_unchanged(world: &mut World) {
+    assert!(world.flux_unrelated_preserved);
 }
 
 #[tokio::test]

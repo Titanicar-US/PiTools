@@ -18,6 +18,8 @@ check:
 	bash tests/acceptance_script.sh
 	bash tests/publish_contract.sh
 	bash tests/maintenance_contract.sh
+	bash tests/flux_promotion_contract.sh
+	bash tests/flux_workflow_contract.sh
 
 acceptance:
 	bash scripts/accept-local-compose.sh
