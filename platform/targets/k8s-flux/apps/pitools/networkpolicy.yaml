@@ -1,0 +1,152 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pitools
+  namespace: codex-specops
+  labels:
+    app.kubernetes.io/name: pitools
+    app.kubernetes.io/instance: pitools
+    app.kubernetes.io/part-of: pitools
+    app.kubernetes.io/managed-by: fluxcd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: pitools
+      app.kubernetes.io/instance: pitools
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - core
+          - core-worker
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: proxy
+              app.kubernetes.io/managed-by: envoy-gateway
+              app.kubernetes.io/name: envoy
+              gateway.envoyproxy.io/owning-gateway-name: codex-specops-public
+              gateway.envoyproxy.io/owning-gateway-namespace: codex-specops
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: codex-specops
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: dev01
+              app.kubernetes.io/managed-by: fluxcd
+              app.kubernetes.io/name: postgres
+              app.kubernetes.io/part-of: codex-specops
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: codex-specops
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: dev01
+              app.kubernetes.io/managed-by: fluxcd
+              app.kubernetes.io/name: nats
+              app.kubernetes.io/part-of: codex-specops
+      ports:
+        - protocol: TCP
+          port: 4222
+    # IPv4 entries from GitHub's /meta api range at 2026-08-14; refresh with owner review.
+    - to:
+        - ipBlock: {cidr: 192.30.252.0/22}
+        - ipBlock: {cidr: 185.199.108.0/22}
+        - ipBlock: {cidr: 140.82.112.0/20}
+        - ipBlock: {cidr: 143.55.64.0/20}
+        - ipBlock: {cidr: 20.201.28.148/32}
+        - ipBlock: {cidr: 20.205.243.168/32}
+        - ipBlock: {cidr: 20.87.245.6/32}
+        - ipBlock: {cidr: 4.237.22.34/32}
+        - ipBlock: {cidr: 4.228.31.149/32}
+        - ipBlock: {cidr: 20.207.73.85/32}
+        - ipBlock: {cidr: 20.27.177.116/32}
+        - ipBlock: {cidr: 20.200.245.245/32}
+        - ipBlock: {cidr: 20.175.192.149/32}
+        - ipBlock: {cidr: 20.233.83.146/32}
+        - ipBlock: {cidr: 20.29.134.17/32}
+        - ipBlock: {cidr: 20.199.39.228/32}
+        - ipBlock: {cidr: 20.217.135.0/32}
+        - ipBlock: {cidr: 4.225.11.201/32}
+        - ipBlock: {cidr: 4.208.26.200/32}
+        - ipBlock: {cidr: 20.26.156.210/32}
+        - ipBlock: {cidr: 172.182.252.137/32}
+        - ipBlock: {cidr: 4.249.131.166/32}
+        - ipBlock: {cidr: 48.202.248.39/32}
+        - ipBlock: {cidr: 48.204.201.2/32}
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pitools-pi-worker
+  namespace: codex-specops
+  labels:
+    app.kubernetes.io/name: pitools
+    app.kubernetes.io/instance: pitools
+    app.kubernetes.io/part-of: pitools
+    app.kubernetes.io/managed-by: fluxcd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: pitools
+      app.kubernetes.io/instance: pitools
+      app.kubernetes.io/component: pi-worker
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: codex-specops
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: dev01
+              app.kubernetes.io/managed-by: fluxcd
+              app.kubernetes.io/name: nats
+              app.kubernetes.io/part-of: codex-specops
+      ports:
+        - protocol: TCP
+          port: 4222

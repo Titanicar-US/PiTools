@@ -1,0 +1,345 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pitools
+  namespace: codex-specops
+  labels:
+    app.kubernetes.io/name: pitools
+    app.kubernetes.io/instance: pitools
+    app.kubernetes.io/part-of: pitools
+    app.kubernetes.io/managed-by: fluxcd
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pitools
+  namespace: codex-specops
+  labels:
+    app.kubernetes.io/name: pitools
+    app.kubernetes.io/instance: pitools
+    app.kubernetes.io/part-of: pitools
+    app.kubernetes.io/managed-by: fluxcd
+    app.kubernetes.io/component: core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pitools
+      app.kubernetes.io/instance: pitools
+      app.kubernetes.io/component: core
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pitools
+        app.kubernetes.io/instance: pitools
+        app.kubernetes.io/part-of: pitools
+        app.kubernetes.io/managed-by: fluxcd
+        app.kubernetes.io/component: core
+    spec:
+      serviceAccountName: pitools
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pitools
+          image: ghcr.io/titanicar-us/pitools@sha256:50c8ae460d0f873f35138dbc7a04d00f9bf8465f434aebd7169410997a397c3d
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/pitools", "server"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pitools-postgres
+                  key: database-url
+            - name: NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pitools-nats
+                  key: nats-url
+            - name: GITHUB_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: pitools-application
+                  key: github-app-id
+            - name: GITHUB_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: pitools-application
+                  key: github-webhook-secret
+            - name: ADMIN_BEARER_TOKEN_HASH
+              valueFrom:
+                secretKeyRef:
+                  name: pitools-application
+                  key: admin-bearer-token-hash
+            - name: GITHUB_PRIVATE_KEY_PATH
+              value: /run/secrets/pitools/github-app-private-key.pem
+            - name: PITOOLS_BIND_ADDRESS
+              value: 0.0.0.0:8080
+            - name: TMPDIR
+              value: /tmp
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          volumeMounts:
+            - name: github-app-private-key
+              mountPath: /run/secrets/pitools
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: github-app-private-key
+          secret:
+            secretName: pitools-application
+            defaultMode: 288
+            items:
+              - key: github-app-private-key.pem
+                path: github-app-private-key.pem
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pitools
+  namespace: codex-specops
+  labels:
+    app.kubernetes.io/name: pitools
+    app.kubernetes.io/instance: pitools
+    app.kubernetes.io/part-of: pitools
+    app.kubernetes.io/managed-by: fluxcd
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: pitools
+    app.kubernetes.io/instance: pitools
+    app.kubernetes.io/component: core
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pitools-worker
+  namespace: codex-specops
+  labels:
+    app.kubernetes.io/name: pitools
+    app.kubernetes.io/instance: pitools
+    app.kubernetes.io/part-of: pitools
+    app.kubernetes.io/managed-by: fluxcd
+    app.kubernetes.io/component: core-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pitools
+      app.kubernetes.io/instance: pitools
+      app.kubernetes.io/component: core-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pitools
+        app.kubernetes.io/instance: pitools
+        app.kubernetes.io/part-of: pitools
+        app.kubernetes.io/managed-by: fluxcd
+        app.kubernetes.io/component: core-worker
+    spec:
+      serviceAccountName: pitools
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pitools-worker
+          image: ghcr.io/titanicar-us/pitools@sha256:50c8ae460d0f873f35138dbc7a04d00f9bf8465f434aebd7169410997a397c3d
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/pitools", "worker"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pitools-postgres
+                  key: database-url
+            - name: NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pitools-nats
+                  key: nats-url
+            - name: GITHUB_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: pitools-application
+                  key: github-app-id
+            - name: GITHUB_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: pitools-application
+                  key: github-webhook-secret
+            - name: ADMIN_BEARER_TOKEN_HASH
+              valueFrom:
+                secretKeyRef:
+                  name: pitools-application
+                  key: admin-bearer-token-hash
+            - name: GITHUB_PRIVATE_KEY_PATH
+              value: /run/secrets/pitools/github-app-private-key.pem
+            - name: PITOOLS_RECONCILE_INTERVAL_SECONDS
+              value: "300"
+            - name: TMPDIR
+              value: /tmp
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          volumeMounts:
+            - name: github-app-private-key
+              mountPath: /run/secrets/pitools
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: github-app-private-key
+          secret:
+            secretName: pitools-application
+            defaultMode: 288
+            items:
+              - key: github-app-private-key.pem
+                path: github-app-private-key.pem
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pitools-pi-worker
+  namespace: codex-specops
+  labels:
+    app.kubernetes.io/name: pitools
+    app.kubernetes.io/instance: pitools
+    app.kubernetes.io/part-of: pitools
+    app.kubernetes.io/managed-by: fluxcd
+    app.kubernetes.io/component: pi-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pitools
+      app.kubernetes.io/instance: pitools
+      app.kubernetes.io/component: pi-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pitools
+        app.kubernetes.io/instance: pitools
+        app.kubernetes.io/part-of: pitools
+        app.kubernetes.io/managed-by: fluxcd
+        app.kubernetes.io/component: pi-worker
+    spec:
+      serviceAccountName: pitools
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pi-worker
+          image: ghcr.io/titanicar-us/pitools-runner@sha256:35d01c8332d0ea62b0df5dd67d6c782a09b7c4b1dbe3c775b78fa8391e391fe4
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/bin/tini", "--", "node", "/opt/pitools/pi/dist/main.js"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+          env:
+            - name: NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pitools-nats
+                  key: nats-url
+            - name: PITOOLS_PI_TRANSPORT
+              value: nats
+            - name: TMPDIR
+              value: /tmp
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi

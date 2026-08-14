@@ -1,0 +1,28 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: pitools
+  namespace: codex-specops
+  labels:
+    app.kubernetes.io/name: pitools
+    app.kubernetes.io/instance: pitools
+    app.kubernetes.io/part-of: pitools
+    app.kubernetes.io/managed-by: fluxcd
+spec:
+  parentRefs:
+    - name: codex-specops-public
+      namespace: codex-specops
+      sectionName: hooks-https
+  hostnames:
+    - hooks.e164sip.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /github/webhook
+        - path:
+            type: Exact
+            value: /github/manifest/callback
+      backendRefs:
+        - name: pitools
+          port: 8080
